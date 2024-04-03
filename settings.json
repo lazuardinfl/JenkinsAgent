@@ -1,0 +1,8 @@
+{
+    "OrchestratorUrl": "http://base.url",
+    "BotId": "BotId",
+    "BotToken": "BotToken",
+    "AutoReconnect": true,
+    "AutoStartup": false,
+    "PreventLock": false
+}

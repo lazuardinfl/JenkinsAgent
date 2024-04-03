@@ -1,0 +1,11 @@
+{
+    "AgentUrl": "jnlpJars/agent.jar",
+    "AgentPath": "agent.jar",
+    "AgentVersion": "3160.vd76b_9ddd10cc",
+    "JavaUrl": "public/download/jre.zip",
+    "JavaPath": "jre/bin",
+    "JavaVersion": "17.0.9.0",
+    "JnlpUrl": "computer/<BotId>/jenkins-agent.jnlp",
+    "ConnectTimeout": 7000,
+    "SchedulerName": "SchedulerFolder/SchedulerName"
+}
