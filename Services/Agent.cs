@@ -13,10 +13,10 @@ namespace Bot.Services;
 public class Agent
 {
     public static readonly ManualResetEvent Mre = new(false);
-    private const string DefaultConfigUrl = "public/config/bot.json";
     private readonly ILogger logger;
     private readonly IHttpClientFactory httpClientFactory;
     private readonly Jenkins jenkins;
+    private string configUrl = "public/config/bot.json";
 
     public Agent(ILogger<Agent> logger, IHttpClientFactory httpClientFactory, Jenkins jenkins)
     {
@@ -33,22 +33,24 @@ public class Agent
         if (!(isConfigValid && await jenkins.Initialize() && await jenkins.Connect()))
         {
             App.RunOnUIThread(async () => {
-                await MessageBox.InvalidJenkinsCredential().ShowAsync();
+                await MessageBox.Error("Connection failed. Make sure connected\n" +
+                                        "to server and bot config is valid!").ShowAsync();
             });
         }
     }
 
-    private async Task<bool> ReloadConfig()
+    public async Task<bool> ReloadConfig()
     {
         try
         {
             string localConfig = await File.ReadAllTextAsync($"{App.BaseDir}/settings.json");
             JsonNode localConfigJson = JsonNode.Parse(localConfig)!;
-            jenkins.IsAutoReconnect = (bool)(localConfigJson["AutoReconnect"] ?? true);
+            configUrl = localConfigJson["ConfigUrl"]?.GetValue<string>() ?? configUrl;
+            jenkins.IsAutoReconnect = localConfigJson["AutoReconnect"]?.GetValue<bool>() ?? true;
             jenkins.Credential = JsonSerializer.Deserialize<JenkinsCredential>(localConfig)!;
             using (HttpClient httpClient = httpClientFactory.CreateClient())
             {
-                string serverConfig = await httpClient.GetStringAsync($"{jenkins.Credential.Url}/{DefaultConfigUrl}");
+                string serverConfig = await httpClient.GetStringAsync($"{jenkins.Credential.Url}/{configUrl}");
                 jenkins.Config = JsonSerializer.Deserialize<JenkinsConfig>(serverConfig)!;
             }
             return true;
@@ -57,6 +59,28 @@ public class Agent
         {
             logger.LogError(e, "{msg}", e.Message);
             jenkins.Status = ConnectionStatus.Disconnected;
+            return false;
+        }
+    }
+
+    public async Task<bool> SaveConfig()
+    {
+        try
+        {
+            JsonObject config = new()
+            {
+                ["OrchestratorUrl"] = jenkins.Credential.Url,
+                ["ConfigUrl"] = configUrl,
+                ["BotId"] = jenkins.Credential.Id,
+                ["BotToken"] = jenkins.Credential.Token,
+                ["AutoReconnect"] = jenkins.IsAutoReconnect
+            };
+            await File.WriteAllTextAsync($"{App.BaseDir}/settings.json", config.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            return true;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "{msg}", e.Message);
             return false;
         }
     }

@@ -1,6 +1,9 @@
+using Bot.Models;
 using Bot.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using MsBox.Avalonia.Enums;
+using System;
 using System.Threading.Tasks;
 
 namespace Bot.ViewModels;
@@ -8,6 +11,7 @@ namespace Bot.ViewModels;
 public partial class ConfigViewModel : PageViewModelBase
 {
     private readonly Jenkins jenkins;
+    private readonly Func<Task<bool>> save;
 
     [ObservableProperty]
     private string? orchestratorUrl;
@@ -18,9 +22,10 @@ public partial class ConfigViewModel : PageViewModelBase
     [ObservableProperty]
     private string? botToken;
 
-    public ConfigViewModel(Jenkins jenkins)
+    public ConfigViewModel(Jenkins jenkins, Func<Task<bool>> save)
     {
         this.jenkins = jenkins;
+        this.save = save;
         Initialize();
     }
 
@@ -38,12 +43,17 @@ public partial class ConfigViewModel : PageViewModelBase
     }
 
     [RelayCommand]
-    private void Apply()
+    private async Task Apply()
     {
-        Hide();
-        jenkins.Credential.Url = OrchestratorUrl;
-        jenkins.Credential.Id = BotId;
-        jenkins.Credential.Token = BotToken;
+        ButtonResult result = await MessageBox.QuestionOkCancel("Save config", "Are you sure to apply bot config?").ShowAsync();
+        if (result == ButtonResult.Ok)
+        {
+            jenkins.Credential.Url = OrchestratorUrl;
+            jenkins.Credential.Id = BotId;
+            jenkins.Credential.Token = BotToken;
+            await save.Invoke();
+            Hide();
+        }
     }
 
     [RelayCommand]

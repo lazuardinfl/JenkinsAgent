@@ -219,7 +219,7 @@ public class Jenkins
             {
                 Disonnect(false);
                 App.RunOnUIThread(async () => {
-                    await MessageBox.InvalidJenkinsCredential().ShowAsync();
+                    await MessageBox.Error("Diconnected from server").ShowAsync();
                 });
             }
         }

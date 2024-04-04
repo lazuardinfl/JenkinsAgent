@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using Bot.Helpers;
 using Bot.Services;
 using Bot.ViewModels;
 using Bot.Views;
@@ -11,16 +12,15 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
-using System.Reflection;
 using System.Threading;
 
 namespace Bot;
 
 public partial class App : Application
 {
-    public static readonly string Title = Assembly.GetExecutingAssembly().GetName().Name ?? "BotAgent";
-    public static readonly string Description = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyTitleAttribute>()?.Title ?? "Bot Agent";
-    public static readonly Version? Version = Assembly.GetExecutingAssembly().GetName().Version;
+    public static readonly string Title = Helper.GetAppTitle() ?? "BotAgent";
+    public static readonly string Description = Helper.GetAppDescription() ?? "Bot Agent";
+    public static readonly Version? Version = Helper.GetAppVersion();
     //public static readonly string BaseDir = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory.Replace(@"\", "/"));
     public static readonly string BaseDir = Path.TrimEndingDirectorySeparator(@"C:\Jenkins\bot".Replace(@"\", "/"));
     public static readonly ManualResetEvent Mre = new(false);
@@ -67,7 +67,7 @@ public partial class App : Application
             app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             app.MainWindow = new MainWindow
             {
-                DataContext = new MainWindowViewModel(host.Services.GetRequiredService<Jenkins>())
+                DataContext = new MainWindowViewModel(agent, host.Services.GetRequiredService<Jenkins>())
             };
             tray.RegisterMainWindow((MainWindowViewModel)app.MainWindow.DataContext);
         }

@@ -20,23 +20,14 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string? name = App.Description;
 
-    public MainWindowViewModel(Jenkins jenkins)
+    public MainWindowViewModel(Agent agent, Jenkins jenkins)
     {
         pages = new()
         {
-            { Page.Config, new ConfigViewModel(jenkins) },
+            { Page.Config, new ConfigViewModel(jenkins, agent.SaveConfig) },
             { Page.About, new AboutViewModel() }
         };
         currentPage = pages[Page.Config];
-        //jenkins.ConnectionChanged += OnConnectionChanged;
-    }
-
-    private async void OnConnectionChanged(object? sender, JenkinsEventArgs e)
-    {
-        if ((e.Status == ConnectionStatus.Disconnected) && (e.IsAutoReconnect == false))
-        {
-            await MessageBox.InvalidJenkinsCredential().ShowAsync();
-        }
     }
 
     public void Show(Page page)

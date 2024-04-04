@@ -71,7 +71,8 @@ public class AppTray
                 if (!(await jenkins.Initialize() && await jenkins.Connect(true)))
                 {
                     App.RunOnUIThread(async () => {
-                        await MessageBox.InvalidJenkinsCredential().ShowAsync();
+                        await MessageBox.Error("Connection failed. Make sure connected\n" +
+                                                "to server and bot config is valid!").ShowAsync();
                     });
                 }
                 break;
@@ -151,10 +152,7 @@ public class AppTray
         logger.LogInformation("Tray Icon reset");
     }
 
-    private void ShowMainWindow(Page page)
-    {
-        mainWindow.Show(page);
-    }
+    private void ShowMainWindow(Page page) => mainWindow.Show(page);
 
     private void Exit()
     {
@@ -164,10 +162,7 @@ public class AppTray
         Environment.Exit(0);
     }
 
-    private nint GetIcon(BotIcon icon)
-    {
-        return new System.Drawing.Icon(icons[icon]).Handle;
-    }
+    private nint GetIcon(BotIcon icon) => new System.Drawing.Icon(icons[icon]).Handle;
 
     public void RegisterMainWindow(MainWindowViewModel mw) => mainWindow = mw;
 }
