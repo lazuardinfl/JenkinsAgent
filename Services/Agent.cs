@@ -13,16 +13,20 @@ namespace Bot.Services;
 public class Agent
 {
     public static readonly ManualResetEvent Mre = new(false);
+    private const string defaultConfigUrl = "public/config/bot.json";
     private readonly ILogger logger;
     private readonly IHttpClientFactory httpClientFactory;
     private readonly Jenkins jenkins;
-    private string configUrl = "public/config/bot.json";
+    private readonly ScreenSaver screenSaver;
+    private string configUrl;
 
-    public Agent(ILogger<Agent> logger, IHttpClientFactory httpClientFactory, Jenkins jenkins)
+    public Agent(ILogger<Agent> logger, IHttpClientFactory httpClientFactory, Jenkins jenkins, ScreenSaver screenSaver)
     {
         this.logger = logger;
         this.httpClientFactory = httpClientFactory;
         this.jenkins = jenkins;
+        this.screenSaver = screenSaver;
+        configUrl = defaultConfigUrl;
     }
 
     public async void Initialize()
@@ -45,13 +49,15 @@ public class Agent
         {
             string localConfig = await File.ReadAllTextAsync($"{App.BaseDir}/settings.json");
             JsonNode localConfigJson = JsonNode.Parse(localConfig)!;
-            configUrl = localConfigJson["ConfigUrl"]?.GetValue<string>() ?? configUrl;
+            configUrl = localConfigJson["ConfigUrl"]?.GetValue<string>() ?? defaultConfigUrl;
             jenkins.IsAutoReconnect = localConfigJson["AutoReconnect"]?.GetValue<bool>() ?? true;
             jenkins.Credential = JsonSerializer.Deserialize<JenkinsCredential>(localConfig)!;
             using (HttpClient httpClient = httpClientFactory.CreateClient())
             {
                 string serverConfig = await httpClient.GetStringAsync($"{jenkins.Credential.Url}/{configUrl}");
                 jenkins.Config = JsonSerializer.Deserialize<JenkinsConfig>(serverConfig)!;
+                ExtensionConfig extensionConfig = JsonSerializer.Deserialize<ExtensionConfig>(serverConfig)!;
+                screenSaver.Config = extensionConfig;
             }
             return true;
         }
