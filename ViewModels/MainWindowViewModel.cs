@@ -20,11 +20,11 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string? name = App.Description;
 
-    public MainWindowViewModel(Agent agent, Jenkins jenkins)
+    public MainWindowViewModel(Config config, Agent agent)
     {
         pages = new()
         {
-            { Page.Config, new ConfigViewModel(jenkins, agent.SaveConfig) },
+            { Page.Config, new ConfigViewModel(config, agent.SaveConfig) },
             { Page.About, new AboutViewModel() }
         };
         currentPage = pages[Page.Config];

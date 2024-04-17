@@ -1,33 +1,18 @@
+using Bot.Helpers;
 using Bot.Models;
 using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
 using System.Net.Http;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Bot.Services;
 
-public class Agent
+public class Agent(ILogger<Agent> logger, IHttpClientFactory httpClientFactory, Config config, Jenkins jenkins, ScreenSaver screenSaver)
 {
     public static readonly ManualResetEvent Mre = new(false);
-    private const string defaultConfigUrl = "public/config/bot.json";
-    private readonly ILogger logger;
-    private readonly IHttpClientFactory httpClientFactory;
-    private readonly Jenkins jenkins;
-    private readonly ScreenSaver screenSaver;
-    private string configUrl;
-
-    public Agent(ILogger<Agent> logger, IHttpClientFactory httpClientFactory, Jenkins jenkins, ScreenSaver screenSaver)
-    {
-        this.logger = logger;
-        this.httpClientFactory = httpClientFactory;
-        this.jenkins = jenkins;
-        this.screenSaver = screenSaver;
-        configUrl = defaultConfigUrl;
-    }
 
     public async void Initialize()
     {
@@ -41,23 +26,19 @@ public class Agent
                                         "to server and bot config is valid!").ShowAsync();
             });
         }
+        screenSaver.Initialize();
     }
 
     public async Task<bool> ReloadConfig()
     {
         try
         {
-            string localConfig = await File.ReadAllTextAsync($"{App.BaseDir}/settings.json");
-            JsonNode localConfigJson = JsonNode.Parse(localConfig)!;
-            configUrl = localConfigJson["ConfigUrl"]?.GetValue<string>() ?? defaultConfigUrl;
-            jenkins.IsAutoReconnect = localConfigJson["AutoReconnect"]?.GetValue<bool>() ?? true;
-            jenkins.Credential = JsonSerializer.Deserialize<JenkinsCredential>(localConfig)!;
+            string clientConfig = await File.ReadAllTextAsync($"{App.BaseDir}/settings.json");
+            config.Client = JsonSerializer.Deserialize<ClientConfig>(clientConfig)!;
             using (HttpClient httpClient = httpClientFactory.CreateClient())
             {
-                string serverConfig = await httpClient.GetStringAsync($"{jenkins.Credential.Url}/{configUrl}");
-                jenkins.Config = JsonSerializer.Deserialize<JenkinsConfig>(serverConfig)!;
-                ExtensionConfig extensionConfig = JsonSerializer.Deserialize<ExtensionConfig>(serverConfig)!;
-                screenSaver.Config = extensionConfig;
+                string serverConfig = await httpClient.GetStringAsync($"{config.Client.OrchestratorUrl}/{config.Client.SettingsUrl}");
+                config.Server = JsonSerializer.Deserialize<ServerConfig>(serverConfig)!;
             }
             return true;
         }
@@ -73,15 +54,10 @@ public class Agent
     {
         try
         {
-            JsonObject config = new()
+            await using (FileStream stream = File.Create($"{App.BaseDir}/settings.json"))
             {
-                ["OrchestratorUrl"] = jenkins.Credential.Url,
-                ["ConfigUrl"] = configUrl,
-                ["BotId"] = jenkins.Credential.Id,
-                ["BotToken"] = jenkins.Credential.Token,
-                ["AutoReconnect"] = jenkins.IsAutoReconnect
-            };
-            await File.WriteAllTextAsync($"{App.BaseDir}/settings.json", config.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+                await JsonSerializer.SerializeAsync(stream, config.Client, Helper.JsonOptions);
+            }
             return true;
         }
         catch (Exception e)

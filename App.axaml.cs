@@ -4,6 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Bot.Helpers;
+using Bot.Models;
 using Bot.Services;
 using Bot.ViewModels;
 using Bot.Views;
@@ -26,6 +27,7 @@ public partial class App : Application
     public static readonly ManualResetEvent Mre = new(false);
     private static readonly Mutex mutex = new(true, Title);
     private readonly IHost host;
+    private readonly Config config;
     private readonly AppTray tray;
     private readonly Agent agent;
 
@@ -44,11 +46,13 @@ public partial class App : Application
             options.TimestampFormat = "yyyy-MM-dd HH:mm:ss # ";
         });
         builder.Services.AddHttpClient();
+        builder.Services.AddSingleton<Config>();
         builder.Services.AddSingleton<ScreenSaver>();
         builder.Services.AddSingleton<Jenkins>();
         builder.Services.AddSingleton<Agent>();
         builder.Services.AddSingleton<AppTray>();
         host = builder.Build();
+        config = host.Services.GetRequiredService<Config>();
         agent = host.Services.GetRequiredService<Agent>();
         tray = host.Services.GetRequiredService<AppTray>();
     }
@@ -67,7 +71,7 @@ public partial class App : Application
             app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             app.MainWindow = new MainWindow
             {
-                DataContext = new MainWindowViewModel(agent, host.Services.GetRequiredService<Jenkins>())
+                DataContext = new MainWindowViewModel(config, agent)
             };
             tray.RegisterMainWindow((MainWindowViewModel)app.MainWindow.DataContext);
         }

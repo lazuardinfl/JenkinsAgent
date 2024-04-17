@@ -2,11 +2,8 @@ using Bot.Models;
 using Bot.ViewModels;
 using H.NotifyIcon.Core;
 using Microsoft.Extensions.Logging;
-using Microsoft.IdentityModel.JsonWebTokens;
 using System;
 using System.Collections.Generic;
-using System.Net.Http;
-using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 
 namespace Bot.Services;
@@ -14,9 +11,8 @@ namespace Bot.Services;
 public class AppTray
 {
     private readonly ILogger logger;
-    private readonly IHttpClientFactory httpClientFactory;
+    private readonly Config config;
     private readonly Jenkins jenkins;
-    private readonly ScreenSaver screenSaver;
     private readonly Dictionary<BotIcon, string> icons;
     private readonly PopupMenuItem testMenuItem;
     private readonly PopupMenuItem startupMenuItem;
@@ -32,18 +28,17 @@ public class AppTray
     private TrayIconWithContextMenu tray;
     private MainWindowViewModel mainWindow = null!;
 
-    public AppTray(ILogger<AppTray> logger, IHttpClientFactory httpClientFactory, Jenkins jenkins, ScreenSaver screenSaver)
+    public AppTray(ILogger<AppTray> logger, Config config, Jenkins jenkins)
     {
         this.logger = logger;
-        this.httpClientFactory = httpClientFactory;
+        this.config = config;
         this.jenkins = jenkins;
-        this.screenSaver = screenSaver;
         icons = new() {
             { BotIcon.Normal, $"{App.BaseDir}/resources/normal.ico" },
             { BotIcon.Offline, $"{App.BaseDir}/resources/offline.ico" }
         };
         startupMenuItem = new("Auto Startup", (_, _) => Test()) { Checked = true };
-        screensaverMenuItem = new("Screen Saver", (_, _) => ScreenSaver());
+        screensaverMenuItem = new("Screen Saver", (_, _) => Test());
         reconnectMenuItem = new("Auto Reconnect", (_, _) => AutoReconnect());
         connectMenuItem = new("Connect", (_, _) => Connect());
         connectionSubMenu = new("Connection") {
@@ -61,41 +56,10 @@ public class AppTray
         tray = CreateSystemTray(true);
     }
 
-    private async void ScreenSaver()
-    {
-        KeyValuePair<string, string?>[] content = [
-            new KeyValuePair<string, string?>("client_id", screenSaver.Config.AuthId),
-            new KeyValuePair<string, string?>("client_secret", screenSaver.Config.AuthSecret),
-            new KeyValuePair<string, string?>("grant_type", "password"),
-            new KeyValuePair<string, string?>("username", jenkins.Credential.Id),
-            new KeyValuePair<string, string?>("password", jenkins.Credential.Token)
-        ];
-        try
-        {
-            using (HttpClient httpClient = httpClientFactory.CreateClient())
-            {
-                using (HttpResponseMessage response = await httpClient.PostAsync(screenSaver.Config.AuthUrl, new FormUrlEncodedContent(content)))
-                {
-                    JsonNode res = JsonNode.Parse(await response.Content.ReadAsStringAsync())!;
-                    JsonWebToken token = new(res["access_token"]?.GetValue<string>());
-                    string[] info = token.GetPayloadValue<string[]>("info");
-                    foreach (var item in info)
-                    {
-                        logger.LogInformation(item);
-                    }
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "{msg}", e.Message);
-        }
-    }
-
     public async void Initialize()
     {
         await Task.Run(Agent.Mre.WaitOne);
-        reconnectMenuItem.Checked = jenkins.IsAutoReconnect;
+        reconnectMenuItem.Checked = config.Client.IsAutoReconnect;
         connectMenuItem.Enabled = !reconnectMenuItem.Checked;
         tray.Show();
     }
@@ -146,8 +110,8 @@ public class AppTray
 
     private void AutoReconnect()
     {
-        jenkins.IsAutoReconnect = !jenkins.IsAutoReconnect;
-        reconnectMenuItem.Checked = jenkins.IsAutoReconnect;
+        config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
+        reconnectMenuItem.Checked = config.Client.IsAutoReconnect;
         connectMenuItem.Enabled = !reconnectMenuItem.Checked;
     }
 
@@ -156,8 +120,8 @@ public class AppTray
         logger.LogInformation("TEST");
         try
         {
-            jenkins.Credential.Url = jenkins.Credential.Url!.Replace("http", "https");
-            jenkins.Credential.Url = jenkins.Credential.Url.Replace("local", "test");
+            config.Client.OrchestratorUrl = config.Client.OrchestratorUrl!.Replace("http", "https");
+            config.Client.OrchestratorUrl = config.Client.OrchestratorUrl.Replace("local", "test");
         }
         catch (Exception e)
         {

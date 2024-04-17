@@ -11,24 +11,11 @@ using System.Threading.Tasks;
 
 namespace Bot.Services;
 
-public class Jenkins
+public class Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFactory, Config config)
 {
     private static readonly ManualResetEvent mre = new(false);
-    private readonly ILogger logger;
-    private readonly IHttpClientFactory httpClientFactory;
+    private Process process = new();
     private ConnectionStatus status;
-    private Process process;
-
-    public JenkinsCredential Credential { get; set; } = new();
-    public JenkinsConfig Config { get; set; } = new();
-    public bool IsAutoReconnect { get; set; }
-
-    public Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFactory)
-    {
-        this.logger = logger;
-        this.httpClientFactory = httpClientFactory;
-        process = new();
-    }
 
     public async Task<bool> Initialize()
     {
@@ -59,8 +46,8 @@ public class Jenkins
     {
         try
         {
-            string? localJavaVersion = FileVersionInfo.GetVersionInfo($"{App.BaseDir}/{Config.JavaPath}/java.exe").FileVersion;
-            return localJavaVersion == Config.JavaVersion;
+            string? localJavaVersion = FileVersionInfo.GetVersionInfo($"{App.BaseDir}/{config.Server.JavaPath}/java.exe").FileVersion;
+            return localJavaVersion == config.Server.JavaVersion;
         }
         catch (Exception e)
         {
@@ -71,12 +58,12 @@ public class Jenkins
 
     private async Task<bool> DownloadJava()
     {
-        string javaDir = $"{App.BaseDir}/{Path.GetDirectoryName(Config.JavaPath)}";
+        string javaDir = $"{App.BaseDir}/{Path.GetDirectoryName(config.Server.JavaPath)}";
         try
         {
             using (HttpClient httpClient = httpClientFactory.CreateClient())
             {
-                using (HttpResponseMessage response = await httpClient.GetAsync($"{Credential.Url}/{Config.JavaUrl}"))
+                using (HttpResponseMessage response = await httpClient.GetAsync($"{config.Client.OrchestratorUrl}/{config.Server.JavaUrl}"))
                 {
                     using (Stream stream = await response.Content.ReadAsStreamAsync())
                     {
@@ -105,8 +92,8 @@ public class Jenkins
         {
             using (Process process = new())
             {
-                process.StartInfo.FileName = $"{App.BaseDir}/{Config.JavaPath}/java.exe";
-                process.StartInfo.Arguments = $"-jar {Config.AgentPath} -version";
+                process.StartInfo.FileName = $"{App.BaseDir}/{config.Server.JavaPath}/java.exe";
+                process.StartInfo.Arguments = $"-jar {config.Server.AgentPath} -version";
                 process.StartInfo.WorkingDirectory = App.BaseDir;
                 process.StartInfo.UseShellExecute = false;
                 process.StartInfo.CreateNoWindow = true;
@@ -114,7 +101,7 @@ public class Jenkins
                 process.StartInfo.RedirectStandardError = true;
                 process.Start();
                 string localAgentVersion = process.StandardOutput.ReadToEnd();
-                return localAgentVersion.Contains(Config.AgentVersion!);
+                return localAgentVersion.Contains(config.Server.AgentVersion!);
             }
         }
         catch (Exception e)
@@ -130,11 +117,11 @@ public class Jenkins
         {
             using (HttpClient httpClient = httpClientFactory.CreateClient())
             {
-                using (HttpResponseMessage response = await httpClient.GetAsync($"{Credential.Url}/{Config.AgentUrl}"))
+                using (HttpResponseMessage response = await httpClient.GetAsync($"{config.Client.OrchestratorUrl}/{config.Server.AgentUrl}"))
                 {
                     using (Stream stream = await response.Content.ReadAsStreamAsync())
                     {
-                        using (FileStream file = File.Create($"{App.BaseDir}/{Config.AgentPath}"))
+                        using (FileStream file = File.Create($"{App.BaseDir}/{config.Server.AgentPath}"))
                         {
                             stream.CopyTo(file);
                         }
@@ -156,10 +143,10 @@ public class Jenkins
         {
             if (newProcess) { process = new(); }
             mre.Reset();
-            process.StartInfo.FileName = $"{App.BaseDir}/{Config.JavaPath}/java.exe";
-            process.StartInfo.Arguments = $"-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT -jar {Config.AgentPath} " +
-                                            $"-jnlpUrl {Credential.Url}/computer/{Credential.Id}/jenkins-agent.jnlp " +
-                                            $"-secret {Credential.Token}";
+            process.StartInfo.FileName = $"{App.BaseDir}/{config.Server.JavaPath}/java.exe";
+            process.StartInfo.Arguments = $"-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT -jar {config.Server.AgentPath} " +
+                                            $"-jnlpUrl {config.Client.OrchestratorUrl}/computer/{config.Client.BotId}/jenkins-agent.jnlp " +
+                                            $"-secret {config.Client.BotToken}";
             process.StartInfo.WorkingDirectory = App.BaseDir;
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.CreateNoWindow = true;
@@ -172,7 +159,7 @@ public class Jenkins
             process.Start();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
-            await Task.Run(() => mre.WaitOne(Config.ConnectTimeout ?? 10000));
+            await Task.Run(() => mre.WaitOne(config.Server.ConnectTimeout ?? 10000));
         }
         catch (Exception e)
         {
@@ -215,7 +202,7 @@ public class Jenkins
         else if (e.Data.Contains("is not ready"))
         {
             if (Status != ConnectionStatus.Disconnected) { Status = ConnectionStatus.Disconnected; }
-            if (!IsAutoReconnect)
+            if (!config.Client.IsAutoReconnect)
             {
                 Disonnect(false);
                 App.RunOnUIThread(async () => {
@@ -241,11 +228,18 @@ public class Jenkins
             {
                 Status = value,
                 Icon = value == ConnectionStatus.Connected ? BotIcon.Normal : BotIcon.Offline,
-                IsAutoReconnect = IsAutoReconnect
+                IsAutoReconnect = config.Client.IsAutoReconnect
             };
             ConnectionChanged?.Invoke(this, args);
         }
     }
 
     public event EventHandler<JenkinsEventArgs>? ConnectionChanged;
+}
+
+public class JenkinsEventArgs : EventArgs
+{
+    public ConnectionStatus Status { get; set; }
+    public BotIcon Icon { get; set; }
+    public bool IsAutoReconnect { get; set; }
 }

@@ -10,7 +10,7 @@ namespace Bot.ViewModels;
 
 public partial class ConfigViewModel : PageViewModelBase
 {
-    private readonly Jenkins jenkins;
+    private readonly Config config;
     private readonly Func<Task<bool>> save;
 
     [ObservableProperty]
@@ -22,9 +22,9 @@ public partial class ConfigViewModel : PageViewModelBase
     [ObservableProperty]
     private string? botToken;
 
-    public ConfigViewModel(Jenkins jenkins, Func<Task<bool>> save)
+    public ConfigViewModel(Config config, Func<Task<bool>> save)
     {
-        this.jenkins = jenkins;
+        this.config = config;
         this.save = save;
         Initialize();
     }
@@ -37,9 +37,9 @@ public partial class ConfigViewModel : PageViewModelBase
 
     private void SetValueOnUI()
     {
-        OrchestratorUrl = jenkins.Credential.Url;
-        BotId = jenkins.Credential.Id;
-        BotToken = jenkins.Credential.Token;
+        OrchestratorUrl = config.Client.OrchestratorUrl;
+        BotId = config.Client.BotId;
+        BotToken = config.Client.BotToken;
     }
 
     [RelayCommand]
@@ -48,9 +48,9 @@ public partial class ConfigViewModel : PageViewModelBase
         ButtonResult result = await MessageBox.QuestionOkCancel("Save config", "Are you sure to apply bot config?").ShowAsync();
         if (result == ButtonResult.Ok)
         {
-            jenkins.Credential.Url = OrchestratorUrl;
-            jenkins.Credential.Id = BotId;
-            jenkins.Credential.Token = BotToken;
+            config.Client.OrchestratorUrl = OrchestratorUrl;
+            config.Client.BotId = BotId;
+            config.Client.BotToken = BotToken;
             await save.Invoke();
             Hide();
         }
