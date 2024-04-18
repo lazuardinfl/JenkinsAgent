@@ -23,7 +23,7 @@ public class Agent(ILogger<Agent> logger, IHttpClientFactory httpClientFactory, 
         {
             App.RunOnUIThread(async () => {
                 await MessageBox.Error("Connection failed. Make sure connected\n" +
-                                        "to server and bot config is valid!").ShowAsync();
+                                       "to server and bot config is valid!").ShowAsync();
             });
         }
         screenSaver.Initialize();

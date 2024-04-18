@@ -26,6 +26,7 @@ public class AppTray
     private readonly PopupSubMenu connectionSubMenu;
     private readonly PopupMenuItem botMenuItem;
     private readonly PopupMenuItem reloadMenuItem;
+    private readonly PopupMenuItem resetMenuItem;
     private readonly PopupSubMenu configSubMenu;
     private readonly PopupMenuItem aboutMenuItem;
     private readonly PopupMenuItem exitMenuItem;
@@ -43,7 +44,8 @@ public class AppTray
             { BotIcon.Normal, $"{App.BaseDir}/resources/normal.ico" },
             { BotIcon.Offline, $"{App.BaseDir}/resources/offline.ico" }
         };
-        startupMenuItem = new("Auto Startup", (_, _) => Test());
+        testMenuItem = new("Test", (_, _) => Test()) { Visible = false };
+        startupMenuItem = new("Auto Startup", (_, _) => AutoStartup());
         preventlockMenuItem = new("Prevent Screen Locked", (_, _) => PreventLock());
         expiredMenuItem = new() { Text = "Expired" };
         screensaverSubMenu = new("Screen Saver") {
@@ -55,13 +57,13 @@ public class AppTray
             Items = { reconnectMenuItem, connectMenuItem }
         };
         botMenuItem = new("Bot Config", (_, _) => ShowMainWindow(Page.Config));
-        reloadMenuItem = new("Reload", (_, _) => Test());
+        reloadMenuItem = new("Reload", (_, _) => Reload());
+        resetMenuItem = new("Reset", (_, _) => Reset());
         configSubMenu = new("Configuration") {
-            Items = { botMenuItem, reloadMenuItem }
+            Items = { botMenuItem, reloadMenuItem, resetMenuItem }
         };
         aboutMenuItem = new("About", (_, _) => ShowMainWindow(Page.About));
         exitMenuItem = new("Exit", (_, _) => Exit());
-        testMenuItem = new("Test", (_, _) => Test());
         screenSaver.PreventLockStatusChanged += OnPreventLockStatusChanged;
         jenkins.ConnectionChanged += OnConnectionChanged;
         tray = CreateSystemTray(true);
@@ -77,6 +79,11 @@ public class AppTray
         reconnectMenuItem.Checked = config.Client.IsAutoReconnect;
         connectMenuItem.Enabled = !reconnectMenuItem.Checked;
         tray.Show();
+    }
+
+    private void AutoStartup()
+    {
+        logger.LogInformation("Auto Startup clicked");
     }
 
     private void OnPreventLockStatusChanged(object? sender, ScreenSaverEventArgs e)
@@ -144,7 +151,7 @@ public class AppTray
                 {
                     App.RunOnUIThread(async () => {
                         await MessageBox.Error("Connection failed. Make sure connected\n" +
-                                                "to server and bot config is valid!").ShowAsync();
+                                               "to server and bot config is valid!").ShowAsync();
                     });
                 }
                 break;
@@ -156,6 +163,16 @@ public class AppTray
         config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
         reconnectMenuItem.Checked = config.Client.IsAutoReconnect;
         connectMenuItem.Enabled = !reconnectMenuItem.Checked;
+    }
+
+    private void Reload()
+    {
+        logger.LogInformation("Reload clicked");
+    }
+
+    private void Reset()
+    {
+        logger.LogInformation("Reset clicked");
     }
 
     private void Test()
