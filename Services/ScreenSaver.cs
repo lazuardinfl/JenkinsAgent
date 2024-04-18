@@ -3,41 +3,160 @@ using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.JsonWebTokens;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
+using System.Timers;
 
 namespace Bot.Services;
 
 public class ScreenSaver(ILogger<ScreenSaver> logger, IHttpClientFactory httpClientFactory, Config config)
 {
+    private const int SPIF_SENDWININICHANGE = 2;
+    private const int SPI_SETSCREENSAVERTIMEOUT = 15;
+    private readonly Timer timer = new(50000);
+    private ExtensionStatus preventLockStatus = ExtensionStatus.Invalid;
+    private DateTime preventLockExpiredDate;
+
+    public event EventHandler<ScreenSaverEventArgs>? PreventLockStatusChanged;
+
+    [Flags]
+    private enum EXECUTION_STATE : uint
+    {
+        ES_AWAYMODE_REQUIRED = 0x00000040,
+        ES_CONTINUOUS = 0x80000000,
+        ES_DISPLAY_REQUIRED = 0x00000002,
+        ES_SYSTEM_REQUIRED = 0x00000001
+    }
+
+    public ExtensionStatus PreventLockStatus
+    {
+        get { return preventLockStatus; }
+        set
+        {
+            preventLockStatus = value;
+            ScreenSaverEventArgs args = new()
+            {
+                PreventLockStatus = value,
+                PreventLockExpiredDate = preventLockExpiredDate
+            };
+            PreventLockStatusChanged?.Invoke(this, args);
+        }
+    }
+
     public async void Initialize()
     {
-        KeyValuePair<string, string?>[] content = [
-            new KeyValuePair<string, string?>("client_id", config.Server.ExtensionAuthId),
-            new KeyValuePair<string, string?>("client_secret", config.Server.ExtensionAuthSecret),
-            new KeyValuePair<string, string?>("grant_type", "password"),
-            new KeyValuePair<string, string?>("username", config.Client.BotId),
-            new KeyValuePair<string, string?>("password", config.Client.BotToken)
-        ];
+        timer.Interval = config.Server.ScreenSaverTimerInterval ?? timer.Interval;
+        timer.Elapsed += OnTimedEvent;
+        PreventLockStatus = await GetPreventLockStatus(true);
+        SetPreventLock();
+    }
+
+    public void SetPreventLock()
+    {
+        switch (PreventLockStatus, config.Client.IsPreventLock)
+        {
+            case (ExtensionStatus.Valid, true):
+                SetScreenSaverTimeout(config.Server.ScreenSaverTimeout ?? 600);
+                timer.Enabled = true;
+                logger.LogInformation("Prevent Lock Running");
+                break;
+            default:
+                timer.Enabled = false;
+                logger.LogInformation("Prevent Lock Not Running");
+                break;
+        }
+    }
+
+    private void OnTimedEvent(object? sender, ElapsedEventArgs e)
+    {
+        if (DateTime.Now.CompareTo(preventLockExpiredDate) <= 0)
+        {
+            ResetLockScreenTimer();
+        }
+        else
+        {
+            PreventLockStatus = ExtensionStatus.Expired;
+            SetPreventLock();
+        }
+    }
+
+    private async Task<ExtensionStatus> GetPreventLockStatus(bool setExpiredDate = false)
+    {
+        Dictionary<string, string?> content = new()
+        {
+            { "client_id", config.Server.ExtensionAuthId },
+            { "client_secret", config.Server.ExtensionAuthSecret },
+            { "grant_type", "password" },
+            { "username", config.Client.BotId },
+            { "password", config.Client.BotToken }
+        };
         try
         {
             using (HttpClient httpClient = httpClientFactory.CreateClient())
             {
                 using (HttpResponseMessage response = await httpClient.PostAsync(config.Server.ExtensionAuthUrl, new FormUrlEncodedContent(content)))
                 {
-                    JsonNode res = JsonNode.Parse(await response.Content.ReadAsStringAsync())!;
-                    JsonWebToken token = new(res["access_token"]?.GetValue<string>());
+                    JsonNode jsonResponse = JsonNode.Parse(await response.Content.ReadAsStringAsync())!;
+                    JsonWebToken token = new(jsonResponse["access_token"]?.GetValue<string>());
                     string[] info = token.GetPayloadValue<string[]>("info");
-                    foreach (var item in info)
+                    foreach (var extension in info)
                     {
-                        logger.LogInformation(item);
+                        if (extension.Contains("PreventLock"))
+                        {
+                            DateTime expire = DateTime.ParseExact(extension.Split('@')[1], "yyyyMMdd", CultureInfo.InvariantCulture).Add(new TimeSpan(23, 59, 59));
+                            preventLockExpiredDate = setExpiredDate == true ? expire : preventLockExpiredDate;
+                            return DateTime.Now.CompareTo(expire) <= 0 ? ExtensionStatus.Valid : ExtensionStatus.Expired;
+                        }
                     }
                 }
             }
+            return ExtensionStatus.Invalid;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "{msg}", e.Message);
+            return ExtensionStatus.Invalid;
+        }
+    }
+
+    private void ResetLockScreenTimer()
+    {
+        try
+        {
+            SetThreadExecutionState(EXECUTION_STATE.ES_DISPLAY_REQUIRED | EXECUTION_STATE.ES_CONTINUOUS);
         }
         catch (Exception e)
         {
             logger.LogError(e, "{msg}", e.Message);
         }
     }
+
+    // Pass in the number of seconds to set the screen saver timeout value.
+    private void SetScreenSaverTimeout(int timeout)
+    {
+        try
+        {
+            int nullVar = 0;
+            SystemParametersInfo(SPI_SETSCREENSAVERTIMEOUT, timeout, ref nullVar, SPIF_SENDWININICHANGE);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "{msg}", e.Message);
+        }
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern EXECUTION_STATE SetThreadExecutionState(EXECUTION_STATE esFlags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern bool SystemParametersInfo(int uAction, int uParam, ref int lpvParam, int flags);
+}
+
+public class ScreenSaverEventArgs : EventArgs
+{
+    public ExtensionStatus PreventLockStatus { get; set; }
+    public DateTime PreventLockExpiredDate { get; set; }
 }

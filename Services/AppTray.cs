@@ -12,11 +12,15 @@ public class AppTray
 {
     private readonly ILogger logger;
     private readonly Config config;
+    private readonly Agent agent;
     private readonly Jenkins jenkins;
+    private readonly ScreenSaver screenSaver;
     private readonly Dictionary<BotIcon, string> icons;
     private readonly PopupMenuItem testMenuItem;
     private readonly PopupMenuItem startupMenuItem;
-    private readonly PopupMenuItem screensaverMenuItem;
+    private readonly PopupMenuItem preventlockMenuItem;
+    private readonly PopupMenuItem expiredMenuItem;
+    private readonly PopupSubMenu screensaverSubMenu;
     private readonly PopupMenuItem reconnectMenuItem;
     private readonly PopupMenuItem connectMenuItem;
     private readonly PopupSubMenu connectionSubMenu;
@@ -28,17 +32,23 @@ public class AppTray
     private TrayIconWithContextMenu tray;
     private MainWindowViewModel mainWindow = null!;
 
-    public AppTray(ILogger<AppTray> logger, Config config, Jenkins jenkins)
+    public AppTray(ILogger<AppTray> logger, Config config, Agent agent, Jenkins jenkins, ScreenSaver screenSaver)
     {
         this.logger = logger;
         this.config = config;
+        this.agent = agent;
         this.jenkins = jenkins;
+        this.screenSaver = screenSaver;
         icons = new() {
             { BotIcon.Normal, $"{App.BaseDir}/resources/normal.ico" },
             { BotIcon.Offline, $"{App.BaseDir}/resources/offline.ico" }
         };
-        startupMenuItem = new("Auto Startup", (_, _) => Test()) { Checked = true };
-        screensaverMenuItem = new("Screen Saver", (_, _) => Test());
+        startupMenuItem = new("Auto Startup", (_, _) => Test());
+        preventlockMenuItem = new("Prevent Screen Locked", (_, _) => PreventLock());
+        expiredMenuItem = new() { Text = "Expired" };
+        screensaverSubMenu = new("Screen Saver") {
+            Items = { preventlockMenuItem, expiredMenuItem }
+        };
         reconnectMenuItem = new("Auto Reconnect", (_, _) => AutoReconnect());
         connectMenuItem = new("Connect", (_, _) => Connect());
         connectionSubMenu = new("Connection") {
@@ -52,6 +62,7 @@ public class AppTray
         aboutMenuItem = new("About", (_, _) => ShowMainWindow(Page.About));
         exitMenuItem = new("Exit", (_, _) => Exit());
         testMenuItem = new("Test", (_, _) => Test());
+        screenSaver.PreventLockStatusChanged += OnPreventLockStatusChanged;
         jenkins.ConnectionChanged += OnConnectionChanged;
         tray = CreateSystemTray(true);
     }
@@ -59,28 +70,41 @@ public class AppTray
     public async void Initialize()
     {
         await Task.Run(Agent.Mre.WaitOne);
+        startupMenuItem.Checked = config.Client.IsAutoStartup;
+        preventlockMenuItem.Enabled = false;
+        screensaverSubMenu.Visible = false;
+        preventlockMenuItem.Checked = config.Client.IsPreventLock;
         reconnectMenuItem.Checked = config.Client.IsAutoReconnect;
         connectMenuItem.Enabled = !reconnectMenuItem.Checked;
         tray.Show();
     }
 
-    private async void Connect()
+    private void OnPreventLockStatusChanged(object? sender, ScreenSaverEventArgs e)
     {
-        switch (jenkins.Status)
+        switch (e.PreventLockStatus)
         {
-            case ConnectionStatus.Connected:
-                jenkins.Disonnect();
+            case ExtensionStatus.Valid:
+                screensaverSubMenu.Visible = true;
+                preventlockMenuItem.Enabled = true;
+                expiredMenuItem.Text = $"Expired: {e.PreventLockExpiredDate:d MMMM yyyy}";
                 break;
-            case ConnectionStatus.Disconnected:
-                if (!(await jenkins.Initialize() && await jenkins.Connect(true)))
-                {
-                    App.RunOnUIThread(async () => {
-                        await MessageBox.Error("Connection failed. Make sure connected\n" +
-                                                "to server and bot config is valid!").ShowAsync();
-                    });
-                }
+            case ExtensionStatus.Invalid:
+                screensaverSubMenu.Visible = false;
+                break;
+            case ExtensionStatus.Expired:
+                screensaverSubMenu.Visible = true;
+                preventlockMenuItem.Enabled = false;
+                expiredMenuItem.Text = $"Expired: {e.PreventLockExpiredDate:d MMMM yyyy}";
                 break;
         }
+    }
+
+    private async void PreventLock()
+    {
+        config.Client.IsPreventLock = !config.Client.IsPreventLock;
+        preventlockMenuItem.Checked = config.Client.IsPreventLock;
+        screenSaver.SetPreventLock();
+        await agent.SaveConfig();
     }
 
     private void OnConnectionChanged(object? sender, JenkinsEventArgs e)
@@ -106,6 +130,25 @@ public class AppTray
                 break;
         }
         tray.UpdateIcon(GetIcon(e.Icon));
+    }
+
+    private async void Connect()
+    {
+        switch (jenkins.Status)
+        {
+            case ConnectionStatus.Connected:
+                jenkins.Disonnect();
+                break;
+            case ConnectionStatus.Disconnected:
+                if (!(await jenkins.Initialize() && await jenkins.Connect(true)))
+                {
+                    App.RunOnUIThread(async () => {
+                        await MessageBox.Error("Connection failed. Make sure connected\n" +
+                                                "to server and bot config is valid!").ShowAsync();
+                    });
+                }
+                break;
+        }
     }
 
     private void AutoReconnect()
@@ -138,7 +181,7 @@ public class AppTray
             ContextMenu = new PopupMenu
             {
                 Items = {
-                    testMenuItem, startupMenuItem, screensaverMenuItem, connectionSubMenu, configSubMenu, aboutMenuItem, exitMenuItem
+                    testMenuItem, startupMenuItem, screensaverSubMenu, connectionSubMenu, configSubMenu, aboutMenuItem, exitMenuItem
                 }
             }
         };

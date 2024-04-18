@@ -1,8 +1,9 @@
 {
-    "OrchestratorUrl": "http://base.url",
+    "SettingsUrl": "path/to/config.json",
+    "OrchestratorUrl": "https://jenkins.tld",
     "BotId": "BotId",
     "BotToken": "BotToken",
     "AutoReconnect": true,
-    "AutoStartup": false,
+    "AutoStartup": true,
     "PreventLock": false
 }

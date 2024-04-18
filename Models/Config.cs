@@ -56,4 +56,6 @@ public sealed class ServerConfig
     public string? ExtensionAuthUrl { get; set; }
     public string? ExtensionAuthId { get; set; }
     public string? ExtensionAuthSecret { get; set; }
+    public int? ScreenSaverTimeout { get; set; }
+    public double? ScreenSaverTimerInterval { get; set; }
 }

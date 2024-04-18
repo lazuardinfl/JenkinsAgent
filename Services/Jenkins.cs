@@ -14,8 +14,8 @@ namespace Bot.Services;
 public class Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFactory, Config config)
 {
     private static readonly ManualResetEvent mre = new(false);
+    private ConnectionStatus status = ConnectionStatus.Disconnected;
     private Process process = new();
-    private ConnectionStatus status;
 
     public async Task<bool> Initialize()
     {
