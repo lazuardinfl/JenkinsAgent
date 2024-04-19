@@ -2,6 +2,7 @@ using Bot.Models;
 using Bot.ViewModels;
 using H.NotifyIcon.Core;
 using Microsoft.Extensions.Logging;
+using MsBox.Avalonia.Enums;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -108,10 +109,16 @@ public class AppTray
 
     private async void PreventLock()
     {
-        config.Client.IsPreventLock = !config.Client.IsPreventLock;
-        preventlockMenuItem.Checked = config.Client.IsPreventLock;
-        screenSaver.SetPreventLock();
-        await agent.SaveConfig();
+        ButtonResult result = await App.GetUIThread().InvokeAsync(async () => {
+            return await MessageBox.QuestionYesNo("Prevent Lock", $"Are you sure to {(config.Client.IsPreventLock ? "disable" : "enable")} prevent lock?").ShowAsync();
+        });
+        if (result == ButtonResult.Yes)
+        {
+            config.Client.IsPreventLock = !config.Client.IsPreventLock;
+            preventlockMenuItem.Checked = config.Client.IsPreventLock;
+            screenSaver.SetPreventLock();
+            await agent.SaveConfig();
+        }
     }
 
     private void OnConnectionChanged(object? sender, JenkinsEventArgs e)
@@ -141,28 +148,47 @@ public class AppTray
 
     private async void Connect()
     {
+        ButtonResult result;
         switch (jenkins.Status)
         {
             case ConnectionStatus.Connected:
-                jenkins.Disonnect();
+                result = await App.GetUIThread().InvokeAsync(async () => {
+                    return await MessageBox.QuestionYesNo("Disconnect", "Are you sure to disconnect from the server?").ShowAsync();
+                });
+                if (result == ButtonResult.Yes) { jenkins.Disonnect(); }
                 break;
             case ConnectionStatus.Disconnected:
-                if (!(await jenkins.Initialize() && await jenkins.Connect(true)))
-                {
-                    App.RunOnUIThread(async () => {
-                        await MessageBox.Error("Connection failed. Make sure connected\n" +
-                                               "to server and bot config is valid!").ShowAsync();
-                    });
-                }
+                result = await App.GetUIThread().InvokeAsync(async () => {
+                    return await MessageBox.QuestionYesNo("Connect", "Are you sure to connect to the server?").ShowAsync();
+                });
+                if (result == ButtonResult.Yes) { await agent.ReloadConnection(true); }
                 break;
         }
     }
 
-    private void AutoReconnect()
+    private async void AutoReconnect()
     {
-        config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
-        reconnectMenuItem.Checked = config.Client.IsAutoReconnect;
-        connectMenuItem.Enabled = !reconnectMenuItem.Checked;
+        ButtonResult result = await App.GetUIThread().InvokeAsync(async () => {
+            return await MessageBox.QuestionYesNo("Auto Reconnect", $"Are you sure to {(config.Client.IsAutoReconnect ? "disable" : "enable")} auto reconnect?").ShowAsync();
+        });
+        if (result == ButtonResult.Yes)
+        {
+            switch (jenkins.Status, config.Client.IsAutoReconnect)
+            {
+                case (ConnectionStatus.Disconnected, true):
+                    jenkins.Disonnect(false);
+                    break;
+                case (ConnectionStatus.Disconnected, false):
+                    await agent.ReloadConnection(true);
+                    break;
+                default:
+                    break;
+            }
+            config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
+            reconnectMenuItem.Checked = config.Client.IsAutoReconnect;
+            connectMenuItem.Enabled = !reconnectMenuItem.Checked;
+            await agent.SaveConfig();
+        }
     }
 
     private void Reload()
@@ -218,11 +244,11 @@ public class AppTray
 
     private void ShowMainWindow(Page page) => mainWindow.Show(page);
 
-    private void Exit()
+    private async void Exit()
     {
         jenkins.Disonnect();
         tray.Dispose();
-        App.Exit();
+        await App.Exit();
         Environment.Exit(0);
     }
 

@@ -21,12 +21,30 @@ public class Agent(ILogger<Agent> logger, IHttpClientFactory httpClientFactory, 
         await Task.Run(App.Mre.WaitOne);
         if (!(isConfigValid && await jenkins.Initialize() && await jenkins.Connect()))
         {
-            App.RunOnUIThread(async () => {
+            App.GetUIThread().Post(async () => {
                 await MessageBox.Error("Connection failed. Make sure connected\n" +
                                        "to server and bot config is valid!").ShowAsync();
             });
         }
         screenSaver.Initialize();
+    }
+
+    public async Task<bool> ReloadConnection(bool tryConnect)
+    {
+        if (jenkins.Status == ConnectionStatus.Connected) { jenkins.Disonnect(); }
+        if (config.Client.IsAutoReconnect || tryConnect)
+        {
+            bool isConnected = await jenkins.Initialize() && await jenkins.Connect();
+            if (!isConnected)
+            {
+                App.GetUIThread().Post(async () => {
+                    await MessageBox.Error("Connection failed. Make sure connected\n" +
+                                           "to server and bot config is valid!").ShowAsync();
+                });
+            }
+            return isConnected;
+        }
+        return false;
     }
 
     public async Task<bool> ReloadConfig()

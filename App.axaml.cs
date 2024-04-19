@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Bot;
 
@@ -79,27 +80,11 @@ public partial class App : Application
         Mre.Set();
     }
 
-    public static void RunOnUIThread(Action action)
-    {
-        if (Dispatcher.UIThread.CheckAccess())
-        {
-            action.Invoke();
-        }
-        else
-        {
-            Dispatcher.UIThread.Post(action);
-        }
-    }
+    public static IClassicDesktopStyleApplicationLifetime Lifetime() => (IClassicDesktopStyleApplicationLifetime)Current!.ApplicationLifetime!;
 
-    public static void Exit()
-    {
-        RunOnUIThread(() => {
-            if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime app)
-            {
-                app.Shutdown();
-            }
-        });
-    }
+    public static Dispatcher GetUIThread() => Dispatcher.UIThread;
+
+    public static async Task Exit() => await GetUIThread().InvokeAsync(() => Lifetime().Shutdown());
 
     private void SingleInstance()
     {

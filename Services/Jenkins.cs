@@ -15,7 +15,7 @@ public class Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFacto
 {
     private static readonly ManualResetEvent mre = new(false);
     private ConnectionStatus status = ConnectionStatus.Disconnected;
-    private Process process = new();
+    private Process process = null!;
 
     public async Task<bool> Initialize()
     {
@@ -137,12 +137,12 @@ public class Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFacto
         }
     }
 
-    public async Task<bool> Connect(bool newProcess = false)
+    public async Task<bool> Connect()
     {
         try
         {
-            if (newProcess) { process = new(); }
             mre.Reset();
+            process = new();
             process.StartInfo.FileName = $"{App.BaseDir}/{config.Server.JavaPath}/java.exe";
             process.StartInfo.Arguments = $"-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT -jar {config.Server.AgentPath} " +
                                             $"-jnlpUrl {config.Client.OrchestratorUrl}/computer/{config.Client.BotId}/jenkins-agent.jnlp " +
@@ -195,7 +195,8 @@ public class Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFacto
             Status = ConnectionStatus.Connected;
             mre.Set();
         }
-        else if (e.Data.Contains("Failed to obtain") || e.Data.Contains("buffer too short") || e.Data.Contains("SEVERE: Handshake error"))
+        else if (e.Data.Contains("Failed to obtain") || e.Data.Contains("buffer too short") ||
+                 e.Data.Contains("SEVERE: Handshake error") || e.Data.Contains("Invalid byte"))
         {
             mre.Set();
         }
@@ -205,7 +206,7 @@ public class Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFacto
             if (!config.Client.IsAutoReconnect)
             {
                 Disonnect(false);
-                App.RunOnUIThread(async () => {
+                App.GetUIThread().Post(async () => {
                     await MessageBox.Error("Diconnected from server").ShowAsync();
                 });
             }

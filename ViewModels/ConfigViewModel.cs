@@ -12,6 +12,7 @@ public partial class ConfigViewModel : PageViewModelBase
 {
     private readonly Config config;
     private readonly Func<Task<bool>> save;
+    private readonly Func<bool, Task<bool>> reload;
 
     [ObservableProperty]
     private string? orchestratorUrl;
@@ -22,10 +23,11 @@ public partial class ConfigViewModel : PageViewModelBase
     [ObservableProperty]
     private string? botToken;
 
-    public ConfigViewModel(Config config, Func<Task<bool>> save)
+    public ConfigViewModel(Config config, Agent agent)
     {
         this.config = config;
-        this.save = save;
+        save = agent.SaveConfig;
+        reload = agent.ReloadConnection;
         Initialize();
     }
 
@@ -45,14 +47,15 @@ public partial class ConfigViewModel : PageViewModelBase
     [RelayCommand]
     private async Task Apply()
     {
-        ButtonResult result = await MessageBox.QuestionOkCancel("Save config", "Are you sure to apply bot config?").ShowAsync();
-        if (result == ButtonResult.Ok)
+        ButtonResult result = await MessageBox.QuestionYesNo("Save config", "Are you sure to apply bot config?").ShowAsync();
+        if (result == ButtonResult.Yes)
         {
             config.Client.OrchestratorUrl = OrchestratorUrl;
             config.Client.BotId = BotId;
             config.Client.BotToken = BotToken;
-            await save.Invoke();
             Hide();
+            await save.Invoke();
+            await reload.Invoke(false);
         }
     }
 
