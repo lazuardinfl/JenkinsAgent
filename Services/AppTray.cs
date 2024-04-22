@@ -13,7 +13,6 @@ public class AppTray
 {
     private readonly ILogger logger;
     private readonly Config config;
-    private readonly Agent agent;
     private readonly Jenkins jenkins;
     private readonly ScreenSaver screenSaver;
     private readonly Dictionary<BotIcon, string> icons;
@@ -34,11 +33,10 @@ public class AppTray
     private TrayIconWithContextMenu tray;
     private MainWindowViewModel mainWindow = null!;
 
-    public AppTray(ILogger<AppTray> logger, Config config, Agent agent, Jenkins jenkins, ScreenSaver screenSaver)
+    public AppTray(ILogger<AppTray> logger, Config config, Jenkins jenkins, ScreenSaver screenSaver)
     {
         this.logger = logger;
         this.config = config;
-        this.agent = agent;
         this.jenkins = jenkins;
         this.screenSaver = screenSaver;
         icons = new() {
@@ -98,6 +96,7 @@ public class AppTray
                 break;
             case ExtensionStatus.Invalid:
                 screensaverSubMenu.Visible = false;
+                preventlockMenuItem.Enabled = false;
                 break;
             case ExtensionStatus.Expired:
                 screensaverSubMenu.Visible = true;
@@ -117,7 +116,7 @@ public class AppTray
             config.Client.IsPreventLock = !config.Client.IsPreventLock;
             preventlockMenuItem.Checked = config.Client.IsPreventLock;
             screenSaver.SetPreventLock();
-            await agent.SaveConfig();
+            await config.Save();
         }
     }
 
@@ -155,13 +154,13 @@ public class AppTray
                 result = await App.GetUIThread().InvokeAsync(async () => {
                     return await MessageBox.QuestionYesNo("Disconnect", "Are you sure to disconnect from the server?").ShowAsync();
                 });
-                if (result == ButtonResult.Yes) { jenkins.Disonnect(); }
+                if (result == ButtonResult.Yes) { jenkins.Disconnect(); }
                 break;
             case ConnectionStatus.Disconnected:
                 result = await App.GetUIThread().InvokeAsync(async () => {
                     return await MessageBox.QuestionYesNo("Connect", "Are you sure to connect to the server?").ShowAsync();
                 });
-                if (result == ButtonResult.Yes) { await agent.ReloadConnection(true); }
+                if (result == ButtonResult.Yes) { await jenkins.ReloadConnection(true); }
                 break;
         }
     }
@@ -176,29 +175,43 @@ public class AppTray
             switch (jenkins.Status, config.Client.IsAutoReconnect)
             {
                 case (ConnectionStatus.Disconnected, true):
-                    jenkins.Disonnect(false);
+                    jenkins.Disconnect(false);
                     break;
                 case (ConnectionStatus.Disconnected, false):
-                    await agent.ReloadConnection(true);
-                    break;
-                default:
+                    await jenkins.ReloadConnection(true);
                     break;
             }
             config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
             reconnectMenuItem.Checked = config.Client.IsAutoReconnect;
             connectMenuItem.Enabled = !reconnectMenuItem.Checked;
-            await agent.SaveConfig();
+            await config.Save();
         }
     }
 
-    private void Reload()
+    private async void Reload()
     {
-        logger.LogInformation("Reload clicked");
+        ButtonResult result = await App.GetUIThread().InvokeAsync(async () => {
+            return await MessageBox.QuestionYesNo("Reload", $"Are you sure to reload config?\nConnection will be reset").ShowAsync();
+        });
+        if (result == ButtonResult.Yes)
+        {
+            await config.Reload();
+            config.RaiseChanged(this, EventArgs.Empty);
+        }
     }
 
-    private void Reset()
+    private async void Reset()
     {
-        logger.LogInformation("Reset clicked");
+        ButtonResult result = await App.GetUIThread().InvokeAsync(async () => {
+            return await MessageBox.QuestionYesNo("Reset", $"Are you sure to reset config?\nYour current config will be deleted").ShowAsync();
+        });
+        if (result == ButtonResult.Yes)
+        {
+            config.Client = new();
+            config.Server = new();
+            await config.Save();
+            config.RaiseChanged(this, EventArgs.Empty);
+        }
     }
 
     private void Test()
@@ -246,7 +259,7 @@ public class AppTray
 
     private async void Exit()
     {
-        jenkins.Disonnect();
+        jenkins.Disconnect();
         tray.Dispose();
         await App.Exit();
         Environment.Exit(0);

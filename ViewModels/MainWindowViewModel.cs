@@ -1,5 +1,4 @@
 ﻿using Avalonia.Controls;
-using Bot.Models;
 using Bot.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections.Generic;
@@ -18,11 +17,11 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string? name = App.Description;
 
-    public MainWindowViewModel(Config config, Agent agent)
+    public MainWindowViewModel(Config config)
     {
         pages = new()
         {
-            { Page.Config, new ConfigViewModel(config, agent) },
+            { Page.Config, new ConfigViewModel(config) },
             { Page.About, new AboutViewModel() }
         };
         currentPage = pages[Page.Config];

@@ -4,7 +4,6 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Bot.Helpers;
-using Bot.Models;
 using Bot.Services;
 using Bot.ViewModels;
 using Bot.Views;
@@ -20,11 +19,12 @@ namespace Bot;
 
 public partial class App : Application
 {
+    public const string DefaultConfigUrl = "public/config/bot.json";
+    //public static readonly string BaseDir = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory.Replace(@"\", "/"));
+    public static readonly string BaseDir = Path.TrimEndingDirectorySeparator(@"C:\Jenkins\bot".Replace(@"\", "/"));
     public static readonly string Title = Helper.GetAppTitle() ?? "BotAgent";
     public static readonly string Description = Helper.GetAppDescription() ?? "Bot Agent";
     public static readonly Version? Version = Helper.GetAppVersion();
-    //public static readonly string BaseDir = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory.Replace(@"\", "/"));
-    public static readonly string BaseDir = Path.TrimEndingDirectorySeparator(@"C:\Jenkins\bot".Replace(@"\", "/"));
     public static readonly ManualResetEvent Mre = new(false);
     private static readonly Mutex mutex = new(true, Title);
     private readonly IHost host;
@@ -72,7 +72,7 @@ public partial class App : Application
             app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             app.MainWindow = new MainWindow
             {
-                DataContext = new MainWindowViewModel(config, agent)
+                DataContext = new MainWindowViewModel(config)
             };
             tray.RegisterMainWindow((MainWindowViewModel)app.MainWindow.DataContext);
         }

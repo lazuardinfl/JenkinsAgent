@@ -153,9 +153,9 @@ public class Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFacto
             process.StartInfo.RedirectStandardOutput = true;
             process.StartInfo.RedirectStandardError = true;
             process.EnableRaisingEvents = true;
-            process.OutputDataReceived += new DataReceivedEventHandler(OutputReceived);
-            process.ErrorDataReceived += new DataReceivedEventHandler(OutputReceived);
-            process.Exited += new EventHandler(Exited);
+            process.OutputDataReceived += new DataReceivedEventHandler(OnOutputReceived);
+            process.ErrorDataReceived += new DataReceivedEventHandler(OnOutputReceived);
+            process.Exited += new EventHandler(OnExited);
             process.Start();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
@@ -165,11 +165,11 @@ public class Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFacto
         {
             logger.LogError(e, "{msg}", e.Message);
         }
-        if (Status != ConnectionStatus.Connected) { Disonnect(); }
+        if (Status != ConnectionStatus.Connected) { Disconnect(); }
         return Status == ConnectionStatus.Connected;
     }
 
-    public void Disonnect(bool setStatus = true)
+    public void Disconnect(bool setStatus = true)
     {
         try
         {
@@ -186,34 +186,60 @@ public class Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFacto
         }
     }
 
-    private void OutputReceived(object? sender, DataReceivedEventArgs e)
+    public async Task<bool> ReloadConnection(bool showMessageBox = false)
+    {
+        bool isConnected = await Initialize() && await Connect();
+        if (!isConnected && showMessageBox)
+        {
+            App.GetUIThread().Post(async () => {
+                await MessageBox.Error("Connection failed. Make sure connected\n" +
+                                       "to server and bot config is valid!").ShowAsync();
+            });
+        }
+        return isConnected;
+    }
+
+    public async void OnConfigChanged(object? sender, EventArgs e)
+    {
+        if (Status == ConnectionStatus.Connected || config.Client.IsAutoReconnect)
+        {
+            Disconnect(false);
+            await ReloadConnection(true);
+        }
+    }
+
+    private void OnOutputReceived(object? sender, DataReceivedEventArgs e)
     {
         logger.LogInformation("{data}", e.Data);
+        // null to prevent exception
         if (e.Data is null) {}
+        // connected first time or after disconnected
         else if (e.Data.Contains("INFO: Connected"))
         {
             Status = ConnectionStatus.Connected;
             mre.Set();
         }
+        // disconnected at first time
         else if (e.Data.Contains("Failed to obtain") || e.Data.Contains("buffer too short") ||
                  e.Data.Contains("SEVERE: Handshake error") || e.Data.Contains("Invalid byte"))
         {
             mre.Set();
         }
+        // disconnected in the middle connection
         else if (e.Data.Contains("is not ready"))
         {
             if (Status != ConnectionStatus.Disconnected) { Status = ConnectionStatus.Disconnected; }
             if (!config.Client.IsAutoReconnect)
             {
-                Disonnect(false);
+                Disconnect(false);
                 App.GetUIThread().Post(async () => {
-                    await MessageBox.Error("Diconnected from server").ShowAsync();
+                    await MessageBox.Error("Disconnected from server").ShowAsync();
                 });
             }
         }
     }
 
-    private void Exited(object? sender, EventArgs e)
+    private void OnExited(object? sender, EventArgs e)
     {
         process.Dispose();
         logger.LogInformation("Jenkins process exited");
@@ -229,7 +255,6 @@ public class Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFacto
             {
                 Status = value,
                 Icon = value == ConnectionStatus.Connected ? BotIcon.Normal : BotIcon.Offline,
-                IsAutoReconnect = config.Client.IsAutoReconnect
             };
             ConnectionChanged?.Invoke(this, args);
         }
@@ -242,5 +267,4 @@ public class JenkinsEventArgs : EventArgs
 {
     public ConnectionStatus Status { get; set; }
     public BotIcon Icon { get; set; }
-    public bool IsAutoReconnect { get; set; }
 }

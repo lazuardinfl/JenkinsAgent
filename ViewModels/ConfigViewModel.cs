@@ -11,8 +11,6 @@ namespace Bot.ViewModels;
 public partial class ConfigViewModel : PageViewModelBase
 {
     private readonly Config config;
-    private readonly Func<Task<bool>> save;
-    private readonly Func<bool, Task<bool>> reload;
 
     [ObservableProperty]
     private string? orchestratorUrl;
@@ -23,11 +21,10 @@ public partial class ConfigViewModel : PageViewModelBase
     [ObservableProperty]
     private string? botToken;
 
-    public ConfigViewModel(Config config, Agent agent)
+    public ConfigViewModel(Config config)
     {
         this.config = config;
-        save = agent.SaveConfig;
-        reload = agent.ReloadConnection;
+        config.Changed += OnConfigChanged;
         Initialize();
     }
 
@@ -44,6 +41,8 @@ public partial class ConfigViewModel : PageViewModelBase
         BotToken = config.Client.BotToken;
     }
 
+    private void OnConfigChanged(object? sender, EventArgs e) => SetValueOnUI();
+
     [RelayCommand]
     private async Task Apply()
     {
@@ -54,8 +53,9 @@ public partial class ConfigViewModel : PageViewModelBase
             config.Client.BotId = BotId;
             config.Client.BotToken = BotToken;
             Hide();
-            await save.Invoke();
-            await reload.Invoke(false);
+            await config.Save();
+            await config.Reload();
+            config.RaiseChanged(this, EventArgs.Empty);
         }
     }
 

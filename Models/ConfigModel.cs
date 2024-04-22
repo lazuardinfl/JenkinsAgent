@@ -6,18 +6,12 @@ public enum BotIcon { Normal, Offline }
 public enum ConnectionStatus { Initialize, Connected, Disconnected }
 public enum ExtensionStatus { Valid, Invalid, Expired }
 
-public class Config
-{
-    public ClientConfig Client { get; set; } = new();
-    public ServerConfig Server { get; set; } = new();
-}
-
 public sealed class ClientConfig
 {
-    public string? SettingsUrl { get; set; }
     public string? OrchestratorUrl { get; set; }
     public string? BotId { get; set; }
     public string? BotToken { get; set; }
+    public string SettingsUrl { get; set; }
     [JsonPropertyName("AutoReconnect")]
     public bool IsAutoReconnect { get; set; }
     [JsonPropertyName("AutoStartup")]
@@ -27,16 +21,19 @@ public sealed class ClientConfig
 
     public ClientConfig()
     {
+        SettingsUrl = App.DefaultConfigUrl;
+        IsAutoReconnect = true;
+        IsAutoStartup = true;
     }
 
     [JsonConstructor]
     public ClientConfig(string? orchestratorUrl, string? botId, string? botToken, bool isPreventLock,
-                       string settingsUrl = "public/config/bot.json", bool isAutoReconnect = true, bool isAutoStartup = true)
+                       string settingsUrl = App.DefaultConfigUrl, bool isAutoReconnect = true, bool isAutoStartup = true)
     {
-        SettingsUrl = settingsUrl;
         OrchestratorUrl = orchestratorUrl;
         BotId = botId;
         BotToken = botToken;
+        SettingsUrl = settingsUrl;
         IsAutoReconnect = isAutoReconnect;
         IsAutoStartup = isAutoStartup;
         IsPreventLock = isPreventLock;

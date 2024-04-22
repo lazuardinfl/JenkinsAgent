@@ -31,43 +31,40 @@ public class ScreenSaver(ILogger<ScreenSaver> logger, IHttpClientFactory httpCli
         ES_SYSTEM_REQUIRED = 0x00000001
     }
 
-    public ExtensionStatus PreventLockStatus
-    {
-        get { return preventLockStatus; }
-        set
-        {
-            preventLockStatus = value;
-            ScreenSaverEventArgs args = new()
-            {
-                PreventLockStatus = value,
-                PreventLockExpiredDate = preventLockExpiredDate
-            };
-            PreventLockStatusChanged?.Invoke(this, args);
-        }
-    }
-
     public async void Initialize()
     {
         timer.Interval = config.Server.ScreenSaverTimerInterval ?? timer.Interval;
         timer.Elapsed += OnTimedEvent;
-        PreventLockStatus = await GetPreventLockStatus(true);
+        preventLockStatus = await GetPreventLockStatus(true);
         SetPreventLock();
     }
 
     public void SetPreventLock()
     {
-        switch (PreventLockStatus, config.Client.IsPreventLock)
+        switch (preventLockStatus, config.Client.IsPreventLock)
         {
             case (ExtensionStatus.Valid, true):
                 SetScreenSaverTimeout(config.Server.ScreenSaverTimeout ?? 600);
                 timer.Enabled = true;
-                logger.LogInformation("Prevent Lock Running");
+                logger.LogInformation("Prevent Lock running");
                 break;
             default:
                 timer.Enabled = false;
-                logger.LogInformation("Prevent Lock Not Running");
+                logger.LogInformation("Prevent Lock not running");
                 break;
         }
+        ScreenSaverEventArgs args = new()
+        {
+            PreventLockStatus = preventLockStatus,
+            PreventLockExpiredDate = preventLockExpiredDate
+        };
+        PreventLockStatusChanged?.Invoke(this, args);
+    }
+
+    public async void OnConfigChanged(object? sender, EventArgs e)
+    {
+        preventLockStatus = await GetPreventLockStatus(true);
+        SetPreventLock();
     }
 
     private void OnTimedEvent(object? sender, ElapsedEventArgs e)
@@ -78,7 +75,7 @@ public class ScreenSaver(ILogger<ScreenSaver> logger, IHttpClientFactory httpCli
         }
         else
         {
-            PreventLockStatus = ExtensionStatus.Expired;
+            preventLockStatus = ExtensionStatus.Expired;
             SetPreventLock();
         }
     }
