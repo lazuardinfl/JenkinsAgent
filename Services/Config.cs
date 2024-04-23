@@ -16,10 +16,7 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
     public ClientConfig Client { get; set; } = new();
     public ServerConfig Server { get; set; } = new();
 
-    public void RaiseChanged(object? sender, EventArgs e)
-    {
-        Changed?.Invoke(sender, e);
-    }
+    public void RaiseChanged(object? sender, EventArgs e) => Changed?.Invoke(sender, e);
 
     public async Task<bool> Reload(bool showMessageBox = false)
     {

@@ -35,7 +35,7 @@ public class ScreenSaver(ILogger<ScreenSaver> logger, IHttpClientFactory httpCli
     {
         timer.Interval = config.Server.ScreenSaverTimerInterval ?? timer.Interval;
         timer.Elapsed += OnTimedEvent;
-        preventLockStatus = await GetPreventLockStatus(true);
+        preventLockStatus = await GetPreventLockStatus();
         SetPreventLock();
     }
 
@@ -63,7 +63,7 @@ public class ScreenSaver(ILogger<ScreenSaver> logger, IHttpClientFactory httpCli
 
     public async void OnConfigChanged(object? sender, EventArgs e)
     {
-        preventLockStatus = await GetPreventLockStatus(true);
+        preventLockStatus = await GetPreventLockStatus();
         SetPreventLock();
     }
 
@@ -80,7 +80,7 @@ public class ScreenSaver(ILogger<ScreenSaver> logger, IHttpClientFactory httpCli
         }
     }
 
-    private async Task<ExtensionStatus> GetPreventLockStatus(bool setExpiredDate = false)
+    private async Task<ExtensionStatus> GetPreventLockStatus(bool setExpiredDate = true)
     {
         Dictionary<string, string?> content = new()
         {
