@@ -68,6 +68,7 @@ public class AppTray
             testMenuItem, startupMenuItem, screensaverSubMenu, 
             connectionSubMenu, configSubMenu, aboutMenuItem, exitMenuItem
         ];
+        config.Changed += OnConfigChanged;
         screenSaver.PreventLockStatusChanged += OnPreventLockStatusChanged;
         jenkins.ConnectionChanged += OnConnectionChanged;
         tray = CreateSystemTray(true);
@@ -192,6 +193,11 @@ public class AppTray
             connectMenuItem.Enabled = !reconnectMenuItem.Checked;
             await config.Save();
         }
+    }
+
+    private void OnConfigChanged(object? sender, EventArgs e)
+    {
+        // handle task scheduler
     }
 
     private async void Reload()

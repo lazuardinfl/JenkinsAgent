@@ -50,6 +50,7 @@ public sealed class ServerConfig
     public string? JavaVersion { get; set; }
     public string? JnlpUrl { get; set; }
     public int? ConnectTimeout { get; set; }
+    public string? TaskSchedulerName { get; set; }
     public string? ExtensionAuthUrl { get; set; }
     public string? ExtensionAuthId { get; set; }
     public string? ExtensionAuthSecret { get; set; }
