@@ -11,7 +11,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,11 +19,11 @@ namespace Bot;
 public partial class App : Application
 {
     public const string DefaultConfigUrl = "public/config/bot.json";
-    //public static readonly string BaseDir = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory.Replace(@"\", "/"));
-    public static readonly string BaseDir = Path.TrimEndingDirectorySeparator(@"C:\Jenkins\bot".Replace(@"\", "/"));
-    public static readonly string Title = Helper.GetAppTitle() ?? "BotAgent";
+    public static readonly string Title = Helper.GetAppTitle() ?? "Bot";
     public static readonly string Description = Helper.GetAppDescription() ?? "Bot Agent";
     public static readonly Version? Version = Helper.GetAppVersion();
+    public static readonly string BaseDir = Helper.GetBaseDir().Replace(@"\", "/");
+    public static readonly string ProfileDir = $"{Helper.GetUserDir().Replace(@"\", "/")}/{Title}";
     public static readonly ManualResetEvent Mre = new(false);
     private static readonly Mutex mutex = new(true, Title);
     private readonly IHost host;

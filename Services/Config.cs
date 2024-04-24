@@ -20,9 +20,10 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
 
     public async Task<bool> Reload(bool showMessageBox = false)
     {
+        Directory.CreateDirectory(App.ProfileDir);
         try
         {
-            string clientConfig = await File.ReadAllTextAsync($"{App.BaseDir}/settings.json");
+            string clientConfig = await File.ReadAllTextAsync($"{App.ProfileDir}/settings.json");
             Client = JsonSerializer.Deserialize<ClientConfig>(clientConfig)!;
             using (HttpClient httpClient = httpClientFactory.CreateClient())
             {
@@ -47,9 +48,10 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
 
     public async Task<bool> Save()
     {
+        Directory.CreateDirectory(App.ProfileDir);
         try
         {
-            await using (FileStream stream = File.Create($"{App.BaseDir}/settings.json"))
+            await using (FileStream stream = File.Create($"{App.ProfileDir}/settings.json"))
             {
                 await JsonSerializer.SerializeAsync(stream, Client, Helper.JsonOptions);
             }

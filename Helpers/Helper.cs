@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -14,6 +15,10 @@ public static partial class Helper
     public static string? GetAppDescription() => Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyTitleAttribute>()?.Title;
 
     public static Version? GetAppVersion() => Assembly.GetExecutingAssembly().GetName().Version;
+
+    public static string GetBaseDir() => Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory);
+
+    public static string GetUserDir() => Environment.GetEnvironmentVariable("USERPROFILE")!;
 
     [GeneratedRegex(@"\s")]
     private static partial Regex WhitespaceRegex();

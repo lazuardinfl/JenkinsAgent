@@ -17,6 +17,23 @@ public class Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFacto
     private ConnectionStatus status = ConnectionStatus.Disconnected;
     private Process process = null!;
 
+    public event EventHandler<JenkinsEventArgs>? ConnectionChanged;
+
+    public ConnectionStatus Status
+    {
+        get { return status; }
+        set
+        {
+            status = value;
+            JenkinsEventArgs args = new()
+            {
+                Status = value,
+                Icon = value == ConnectionStatus.Connected ? BotIcon.Normal : BotIcon.Offline,
+            };
+            ConnectionChanged?.Invoke(this, args);
+        }
+    }
+
     public async Task<bool> Initialize()
     {
         // check java
@@ -42,112 +59,17 @@ public class Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFacto
         return isReady;
     }
 
-    private bool IsJavaVersionCompatible()
-    {
-        try
-        {
-            string? localJavaVersion = FileVersionInfo.GetVersionInfo($"{App.BaseDir}/{config.Server.JavaPath}/java.exe").FileVersion;
-            return localJavaVersion == config.Server.JavaVersion;
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "{msg}", e.Message);
-            return false;
-        }
-    }
-
-    private async Task<bool> DownloadJava()
-    {
-        string javaDir = $"{App.BaseDir}/{Path.GetDirectoryName(config.Server.JavaPath)}";
-        try
-        {
-            using (HttpClient httpClient = httpClientFactory.CreateClient())
-            {
-                using (HttpResponseMessage response = await httpClient.GetAsync($"{config.Client.OrchestratorUrl}/{config.Server.JavaUrl}"))
-                {
-                    using (Stream stream = await response.Content.ReadAsStreamAsync())
-                    {
-                        using (ZipArchive archive = new(stream))
-                        {
-                            if (Directory.Exists(javaDir)) { Directory.Delete(javaDir, true); }
-                            archive.ExtractToDirectory(App.BaseDir, true);
-                        }
-                    }
-                }
-            }
-            DirectoryInfo javaTemp = new DirectoryInfo(App.BaseDir).GetDirectories().OrderByDescending(d => d.LastWriteTimeUtc).First();
-            Directory.Move(javaTemp.FullName, javaDir);
-            return true;
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "{msg}", e.Message);
-            return false;
-        }
-    }
-
-    private bool IsAgentVersionCompatible()
-    {
-        try
-        {
-            using (Process process = new())
-            {
-                process.StartInfo.FileName = $"{App.BaseDir}/{config.Server.JavaPath}/java.exe";
-                process.StartInfo.Arguments = $"-jar {config.Server.AgentPath} -version";
-                process.StartInfo.WorkingDirectory = App.BaseDir;
-                process.StartInfo.UseShellExecute = false;
-                process.StartInfo.CreateNoWindow = true;
-                process.StartInfo.RedirectStandardOutput = true;
-                process.StartInfo.RedirectStandardError = true;
-                process.Start();
-                string localAgentVersion = process.StandardOutput.ReadToEnd();
-                return localAgentVersion.Contains(config.Server.AgentVersion!);
-            }
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "{msg}", e.Message);
-            return false;
-        }
-    }
-
-    private async Task<bool> DownloadAgent()
-    {
-        try
-        {
-            using (HttpClient httpClient = httpClientFactory.CreateClient())
-            {
-                using (HttpResponseMessage response = await httpClient.GetAsync($"{config.Client.OrchestratorUrl}/{config.Server.AgentUrl}"))
-                {
-                    using (Stream stream = await response.Content.ReadAsStreamAsync())
-                    {
-                        using (FileStream file = File.Create($"{App.BaseDir}/{config.Server.AgentPath}"))
-                        {
-                            stream.CopyTo(file);
-                        }
-                    }
-                }
-            }
-            return true;
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "{msg}", e.Message);
-            return false;
-        }
-    }
-
     public async Task<bool> Connect()
     {
         try
         {
             mre.Reset();
             process = new();
-            process.StartInfo.FileName = $"{App.BaseDir}/{config.Server.JavaPath}/java.exe";
+            process.StartInfo.FileName = $"{App.ProfileDir}/{config.Server.JavaPath}/java.exe";
             process.StartInfo.Arguments = $"-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT -jar {config.Server.AgentPath} " +
                                             $"-jnlpUrl {config.Client.OrchestratorUrl}/computer/{config.Client.BotId}/jenkins-agent.jnlp " +
                                             $"-secret {config.Client.BotToken}";
-            process.StartInfo.WorkingDirectory = App.BaseDir;
+            process.StartInfo.WorkingDirectory = App.ProfileDir;
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.CreateNoWindow = true;
             process.StartInfo.RedirectStandardOutput = true;
@@ -208,6 +130,101 @@ public class Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFacto
         }
     }
 
+    private bool IsJavaVersionCompatible()
+    {
+        try
+        {
+            string? localJavaVersion = FileVersionInfo.GetVersionInfo($"{App.ProfileDir}/{config.Server.JavaPath}/java.exe").FileVersion;
+            return localJavaVersion == config.Server.JavaVersion;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "{msg}", e.Message);
+            return false;
+        }
+    }
+
+    private async Task<bool> DownloadJava()
+    {
+        string javaDir = $"{App.ProfileDir}/{Path.GetDirectoryName(config.Server.JavaPath)}";
+        try
+        {
+            using (HttpClient httpClient = httpClientFactory.CreateClient())
+            {
+                using (HttpResponseMessage response = await httpClient.GetAsync($"{config.Client.OrchestratorUrl}/{config.Server.JavaUrl}"))
+                {
+                    using (Stream stream = await response.Content.ReadAsStreamAsync())
+                    {
+                        using (ZipArchive archive = new(stream))
+                        {
+                            if (Directory.Exists(javaDir)) { Directory.Delete(javaDir, true); }
+                            archive.ExtractToDirectory(App.ProfileDir, true);
+                        }
+                    }
+                }
+            }
+            DirectoryInfo javaTemp = new DirectoryInfo(App.ProfileDir).GetDirectories().OrderByDescending(d => d.LastWriteTimeUtc).First();
+            Directory.Move(javaTemp.FullName, javaDir);
+            return true;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "{msg}", e.Message);
+            return false;
+        }
+    }
+
+    private bool IsAgentVersionCompatible()
+    {
+        try
+        {
+            using (Process process = new())
+            {
+                process.StartInfo.FileName = $"{App.ProfileDir}/{config.Server.JavaPath}/java.exe";
+                process.StartInfo.Arguments = $"-jar {config.Server.AgentPath} -version";
+                process.StartInfo.WorkingDirectory = App.ProfileDir;
+                process.StartInfo.UseShellExecute = false;
+                process.StartInfo.CreateNoWindow = true;
+                process.StartInfo.RedirectStandardOutput = true;
+                process.StartInfo.RedirectStandardError = true;
+                process.Start();
+                string localAgentVersion = process.StandardOutput.ReadToEnd();
+                return localAgentVersion.Contains(config.Server.AgentVersion!);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "{msg}", e.Message);
+            return false;
+        }
+    }
+
+    private async Task<bool> DownloadAgent()
+    {
+        try
+        {
+            using (HttpClient httpClient = httpClientFactory.CreateClient())
+            {
+                using (HttpResponseMessage response = await httpClient.GetAsync($"{config.Client.OrchestratorUrl}/{config.Server.AgentUrl}"))
+                {
+                    using (Stream stream = await response.Content.ReadAsStreamAsync())
+                    {
+                        using (FileStream file = File.Create($"{App.ProfileDir}/{config.Server.AgentPath}"))
+                        {
+                            stream.CopyTo(file);
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "{msg}", e.Message);
+            return false;
+        }
+    }
+
     private void OnOutputReceived(object? sender, DataReceivedEventArgs e)
     {
         logger.LogInformation("{data}", e.Data);
@@ -244,23 +261,6 @@ public class Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFacto
         process.Dispose();
         logger.LogInformation("Jenkins process exited");
     }
-
-    public ConnectionStatus Status
-    {
-        get { return status; }
-        set
-        {
-            status = value;
-            JenkinsEventArgs args = new()
-            {
-                Status = value,
-                Icon = value == ConnectionStatus.Connected ? BotIcon.Normal : BotIcon.Offline,
-            };
-            ConnectionChanged?.Invoke(this, args);
-        }
-    }
-
-    public event EventHandler<JenkinsEventArgs>? ConnectionChanged;
 }
 
 public class JenkinsEventArgs : EventArgs
