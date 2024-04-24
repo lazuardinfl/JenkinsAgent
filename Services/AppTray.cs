@@ -74,7 +74,7 @@ public class AppTray
     public async void Initialize()
     {
         await Task.Run(Agent.Mre.WaitOne);
-        HideMenu(testMenuItem);
+        //HideMenu(testMenuItem);
         startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
         preventlockMenuItem.Enabled = false;
         HideMenu(screensaverSubMenu);
@@ -112,11 +112,11 @@ public class AppTray
         {
             //config.Client.OrchestratorUrl = config.Client.OrchestratorUrl!.Replace("http", "https");
             //config.Client.OrchestratorUrl = config.Client.OrchestratorUrl.Replace("local", "test");
-            HideMenu(screensaverSubMenu);
-            HideMenu(configSubMenu);
-            await Task.Delay(5000);
-            ShowMenu(aboutMenuItem);
-            ShowMenu(screensaverSubMenu);
+            //HideMenu(screensaverSubMenu);
+            //HideMenu(configSubMenu);
+            //await Task.Delay(5000);
+            //ShowMenu(aboutMenuItem);
+            //ShowMenu(screensaverSubMenu);
         }
         catch (Exception e)
         {

@@ -11,11 +11,22 @@ using System.Threading.Tasks;
 
 namespace Bot.Services;
 
-public class Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFactory, Config config)
+public class Jenkins
 {
     private static readonly ManualResetEvent mre = new(false);
+    private readonly ILogger logger;
+    private readonly IHttpClientFactory httpClientFactory;
+    private readonly Config config;
     private ConnectionStatus status = ConnectionStatus.Disconnected;
     private Process process = null!;
+
+    public Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFactory, Config config)
+    {
+        this.logger = logger;
+        this.httpClientFactory = httpClientFactory;
+        this.config = config;
+        config.Changed += OnConfigChanged;
+    }
 
     public event EventHandler<JenkinsEventArgs>? ConnectionChanged;
 
@@ -121,15 +132,6 @@ public class Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFacto
         return isConnected;
     }
 
-    public async void OnConfigChanged(object? sender, EventArgs e)
-    {
-        if (Status == ConnectionStatus.Connected || config.Client.IsAutoReconnect)
-        {
-            Disconnect(false);
-            await ReloadConnection(true);
-        }
-    }
-
     private bool IsJavaVersionCompatible()
     {
         try
@@ -222,6 +224,15 @@ public class Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFacto
         {
             logger.LogError(e, "{msg}", e.Message);
             return false;
+        }
+    }
+
+    private async void OnConfigChanged(object? sender, EventArgs e)
+    {
+        if (Status == ConnectionStatus.Connected || config.Client.IsAutoReconnect)
+        {
+            Disconnect(false);
+            await ReloadConnection(true);
         }
     }
 

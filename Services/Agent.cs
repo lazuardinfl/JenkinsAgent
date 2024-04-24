@@ -13,8 +13,6 @@ public class Agent(ILogger<Agent> logger, Config config, Jenkins jenkins, Screen
     public async void Initialize()
     {
         SetEnvironmentVariable();
-        config.Changed += jenkins.OnConfigChanged;
-        config.Changed += screenSaver.OnConfigChanged;
         bool isConfigValid = await config.Reload(true);
         if (TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) == null)
         {

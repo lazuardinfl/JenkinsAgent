@@ -12,13 +12,23 @@ using System.Timers;
 
 namespace Bot.Services;
 
-public class ScreenSaver(ILogger<ScreenSaver> logger, IHttpClientFactory httpClientFactory, Config config)
+public class ScreenSaver
 {
-    private const int SPIF_SENDWININICHANGE = 2;
-    private const int SPI_SETSCREENSAVERTIMEOUT = 15;
+    private readonly ILogger logger;
+    private readonly IHttpClientFactory httpClientFactory;
+    private readonly Config config;
     private readonly Timer timer = new(50000);
     private ExtensionStatus preventLockStatus = ExtensionStatus.Invalid;
     private DateTime preventLockExpiredDate;
+
+    public ScreenSaver(ILogger<ScreenSaver> logger, IHttpClientFactory httpClientFactory, Config config)
+    {
+        this.logger = logger;
+        this.httpClientFactory = httpClientFactory;
+        this.config = config;
+        config.Changed += OnConfigChanged;
+        timer.Elapsed += OnTimedEvent;
+    }
 
     public event EventHandler<ScreenSaverEventArgs>? PreventLockStatusChanged;
 
@@ -34,7 +44,6 @@ public class ScreenSaver(ILogger<ScreenSaver> logger, IHttpClientFactory httpCli
     public async void Initialize()
     {
         timer.Interval = config.Server.ScreenSaverTimerInterval ?? timer.Interval;
-        timer.Elapsed += OnTimedEvent;
         preventLockStatus = await GetPreventLockStatus();
         SetPreventLock();
     }
@@ -61,7 +70,7 @@ public class ScreenSaver(ILogger<ScreenSaver> logger, IHttpClientFactory httpCli
         PreventLockStatusChanged?.Invoke(this, args);
     }
 
-    public async void OnConfigChanged(object? sender, EventArgs e)
+    private async void OnConfigChanged(object? sender, EventArgs e)
     {
         preventLockStatus = await GetPreventLockStatus();
         SetPreventLock();
@@ -137,7 +146,7 @@ public class ScreenSaver(ILogger<ScreenSaver> logger, IHttpClientFactory httpCli
         try
         {
             int nullVar = 0;
-            SystemParametersInfo(SPI_SETSCREENSAVERTIMEOUT, timeout, ref nullVar, SPIF_SENDWININICHANGE);
+            SystemParametersInfo(15, timeout, ref nullVar, 2);
         }
         catch (Exception e)
         {
