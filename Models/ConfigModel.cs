@@ -14,8 +14,6 @@ public sealed class ClientConfig
     public string SettingsUrl { get; set; }
     [JsonPropertyName("AutoReconnect")]
     public bool IsAutoReconnect { get; set; }
-    [JsonPropertyName("AutoStartup")]
-    public bool IsAutoStartup { get; set; }
     [JsonPropertyName("PreventLock")]
     public bool IsPreventLock { get; set; }
 
@@ -23,19 +21,17 @@ public sealed class ClientConfig
     {
         SettingsUrl = App.DefaultConfigUrl;
         IsAutoReconnect = true;
-        IsAutoStartup = true;
     }
 
     [JsonConstructor]
     public ClientConfig(string? orchestratorUrl, string? botId, string? botToken, bool isPreventLock,
-                       string settingsUrl = App.DefaultConfigUrl, bool isAutoReconnect = true, bool isAutoStartup = true)
+                       string settingsUrl = App.DefaultConfigUrl, bool isAutoReconnect = true)
     {
         OrchestratorUrl = orchestratorUrl;
         BotId = botId;
         BotToken = botToken;
         SettingsUrl = settingsUrl;
         IsAutoReconnect = isAutoReconnect;
-        IsAutoStartup = isAutoStartup;
         IsPreventLock = isPreventLock;
     }
 }

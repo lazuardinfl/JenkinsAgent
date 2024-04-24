@@ -7,7 +7,7 @@
     "JavaVersion": "17.0.9.0",
     "JnlpUrl": "computer/<BotId>/jenkins-agent.jnlp",
     "ConnectTimeout": 7000,
-    "SchedulerName": "SchedulerFolder/SchedulerName",
+    "TaskSchedulerName": "SchedulerFolder/SchedulerName",
     "ExtensionAuthUrl": "https://keycloak.tld/openid",
     "ExtensionAuthId": "client_id",
     "ExtensionAuthSecret": "client_token",

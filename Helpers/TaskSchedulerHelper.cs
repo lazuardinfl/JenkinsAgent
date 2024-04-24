@@ -7,19 +7,19 @@ public static class TaskSchedulerHelper
 {
     public static Task GetTask(string name) => TaskService.Instance.GetTask(name.Replace("/", @"\"));
 
-    public static bool? GetStatus(string name) => GetTask(name)?.Enabled;
+    public static bool? GetStatus(string? name) => GetTask(name ?? "")?.Enabled;
 
-    public static bool Enable(string name, bool enabled)
+    public static bool Enable(string? name, bool enabled)
     {
         try
         {
-            GetTask(name).Enabled = enabled;
+            GetTask(name ?? "").Enabled = enabled;
             return true;
         }
         catch (Exception) { return false; }
     }
 
-    public static bool Create(string name, string appName, string workingDirectory, bool enabled = false) 
+    public static bool Create(string? name, string appName, string workingDirectory, bool enabled = false) 
     {
         try
         {
@@ -31,7 +31,7 @@ public static class TaskSchedulerHelper
                 definition.Settings.DisallowStartIfOnBatteries = false;
                 definition.Settings.StopIfGoingOnBatteries = false;
                 definition.Settings.Enabled = enabled;
-                TaskService.Instance.RootFolder.RegisterTaskDefinition(name.Replace("/", @"\"), definition);
+                TaskService.Instance.RootFolder.RegisterTaskDefinition(name?.Replace("/", @"\"), definition);
             }
             return true;
         }

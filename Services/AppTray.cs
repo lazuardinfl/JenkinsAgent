@@ -1,3 +1,4 @@
+using Bot.Helpers;
 using Bot.Models;
 using Bot.ViewModels;
 using H.NotifyIcon.Core;
@@ -18,16 +19,12 @@ public class AppTray
     private readonly Dictionary<BotIcon, string> icons;
     private readonly PopupMenuItem testMenuItem;
     private readonly PopupMenuItem startupMenuItem;
-    private readonly PopupMenuItem preventlockMenuItem;
-    private readonly PopupMenuItem expiredMenuItem;
     private readonly PopupSubMenu screensaverSubMenu;
-    private readonly PopupMenuItem reconnectMenuItem;
-    private readonly PopupMenuItem connectMenuItem;
+    private readonly PopupMenuItem preventlockMenuItem, expiredMenuItem;
     private readonly PopupSubMenu connectionSubMenu;
-    private readonly PopupMenuItem botMenuItem;
-    private readonly PopupMenuItem reloadMenuItem;
-    private readonly PopupMenuItem resetMenuItem;
+    private readonly PopupMenuItem reconnectMenuItem, connectMenuItem;
     private readonly PopupSubMenu configSubMenu;
+    private readonly PopupMenuItem botMenuItem, reloadMenuItem, resetMenuItem;
     private readonly PopupMenuItem aboutMenuItem;
     private readonly PopupMenuItem exitMenuItem;
     private readonly PopupItem[] menuOrder;
@@ -78,7 +75,7 @@ public class AppTray
     {
         await Task.Run(Agent.Mre.WaitOne);
         HideMenu(testMenuItem);
-        startupMenuItem.Checked = config.Client.IsAutoStartup;
+        startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
         preventlockMenuItem.Enabled = false;
         HideMenu(screensaverSubMenu);
         preventlockMenuItem.Checked = config.Client.IsPreventLock;
@@ -87,9 +84,25 @@ public class AppTray
         tray.Show();
     }
 
-    private void AutoStartup()
+    private async void AutoStartup()
     {
-        logger.LogInformation("Auto Startup clicked");
+        ButtonResult result = await App.GetUIThread().InvokeAsync(async () => {
+            return await MessageBox.QuestionYesNo("Auto Startup", $"Are you sure to {(startupMenuItem.Checked ? "disable" : "enable")} auto startup?").ShowAsync();
+        });
+        if (result == ButtonResult.Yes)
+        {
+            if (TaskSchedulerHelper.Enable(config.Server.TaskSchedulerName, !startupMenuItem.Checked))
+            {
+                startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
+            }
+            else
+            {
+                App.GetUIThread().Post(async () => {
+                    await MessageBox.Error("You need to run program as admin\n" +
+                                           "and make sure bot config is valid!").ShowAsync();
+                });   
+            }
+        }
     }
 
     private void OnPreventLockStatusChanged(object? sender, ScreenSaverEventArgs e)
@@ -198,6 +211,8 @@ public class AppTray
     private void OnConfigChanged(object? sender, EventArgs e)
     {
         // handle task scheduler
+        TaskSchedulerHelper.Create(config.Server.TaskSchedulerName, App.Title, App.BaseDir, startupMenuItem.Checked);
+        startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
     }
 
     private async void Reload()
