@@ -29,7 +29,7 @@ public class AppTray
     private readonly PopupMenuItem exitMenuItem;
     private readonly PopupItem[] menuOrder;
     private TrayIconWithContextMenu tray;
-    private MainWindowViewModel mainWindow = null!;
+    private Action<Page> showMainWindow = null!;
 
     public AppTray(ILogger<AppTray> logger, Config config, Jenkins jenkins, ScreenSaver screenSaver)
     {
@@ -53,21 +53,21 @@ public class AppTray
         connectionSubMenu = new("Connection") {
             Items = { reconnectMenuItem, connectMenuItem }
         };
-        botMenuItem = new("Bot Config", (_, _) => ShowMainWindow(Page.Config));
+        botMenuItem = new("Bot Config", (_, _) => showMainWindow.Invoke(Page.Config));
         reloadMenuItem = new("Reload", (_, _) => Reload());
         resetMenuItem = new("Reset", (_, _) => Reset());
         configSubMenu = new("Configuration") {
             Items = { botMenuItem, reloadMenuItem, resetMenuItem }
         };
-        aboutMenuItem = new("About", (_, _) => ShowMainWindow(Page.About));
+        aboutMenuItem = new("About", (_, _) => showMainWindow.Invoke(Page.About));
         exitMenuItem = new("Exit", (_, _) => Exit());
         menuOrder = [
             testMenuItem, startupMenuItem, screensaverSubMenu, 
             connectionSubMenu, configSubMenu, aboutMenuItem, exitMenuItem
         ];
         config.Changed += OnConfigChanged;
-        screenSaver.PreventLockStatusChanged += OnPreventLockStatusChanged;
         jenkins.ConnectionChanged += OnConnectionChanged;
+        screenSaver.PreventLockStatusChanged += OnPreventLockStatusChanged;
         tray = CreateSystemTray(true);
     }
 
@@ -84,7 +84,7 @@ public class AppTray
         tray.Show();
     }
 
-    public void RegisterMainWindow(MainWindowViewModel mw) => mainWindow = mw;
+    public void RegisterShowMainWindow(MainWindowViewModel mainWindow) => showMainWindow = mainWindow.Show;
 
     private TrayIconWithContextMenu CreateSystemTray(bool hidden = false)
     {
@@ -154,7 +154,7 @@ public class AppTray
         {
             config.Client.IsPreventLock = !config.Client.IsPreventLock;
             preventlockMenuItem.Checked = config.Client.IsPreventLock;
-            screenSaver.SetPreventLock();
+            screenSaver.ReloadPreventLock();
             await config.Save();
         }
     }
@@ -166,7 +166,6 @@ public class AppTray
             case ExtensionStatus.Valid:
                 ShowMenu(screensaverSubMenu);
                 preventlockMenuItem.Enabled = true;
-                expiredMenuItem.Text = $"Expired: {e.PreventLockExpiredDate:d MMMM yyyy}";
                 break;
             case ExtensionStatus.Invalid:
                 HideMenu(screensaverSubMenu);
@@ -175,9 +174,9 @@ public class AppTray
             case ExtensionStatus.Expired:
                 ShowMenu(screensaverSubMenu);
                 preventlockMenuItem.Enabled = false;
-                expiredMenuItem.Text = $"Expired: {e.PreventLockExpiredDate:d MMMM yyyy}";
                 break;
         }
+        expiredMenuItem.Text = $"Expired: {e.PreventLockExpiredDate:d MMMM yyyy}";
     }
 
     private async void Connect()
@@ -280,8 +279,6 @@ public class AppTray
         TaskSchedulerHelper.Create(config.Server.TaskSchedulerName, App.Title, App.BaseDir, startupMenuItem.Checked);
         startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
     }
-
-    private void ShowMainWindow(Page page) => mainWindow.Show(page);
 
     private void ShowMenu(PopupItem menu)
     {

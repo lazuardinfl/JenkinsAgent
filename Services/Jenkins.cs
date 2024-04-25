@@ -92,7 +92,7 @@ public class Jenkins
             process.Start();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
-            await Task.Run(() => mre.WaitOne(config.Server.ConnectTimeout ?? 10000));
+            await Task.Run(() => mre.WaitOne(config.Server.ConnectTimeout));
         }
         catch (Exception e)
         {

@@ -73,7 +73,7 @@ public partial class App : Application
             {
                 DataContext = new MainWindowViewModel(config)
             };
-            tray.RegisterMainWindow((MainWindowViewModel)app.MainWindow.DataContext);
+            tray.RegisterShowMainWindow((MainWindowViewModel)app.MainWindow.DataContext);
         }
         base.OnFrameworkInitializationCompleted();
         Mre.Set();

@@ -18,8 +18,8 @@ public class ScreenSaver
     private readonly IHttpClientFactory httpClientFactory;
     private readonly Config config;
     private readonly Timer timer = new(50000);
+    private DateTime? preventLockExpiredDate = null;
     private ExtensionStatus preventLockStatus = ExtensionStatus.Invalid;
-    private DateTime preventLockExpiredDate;
 
     public ScreenSaver(ILogger<ScreenSaver> logger, IHttpClientFactory httpClientFactory, Config config)
     {
@@ -43,17 +43,18 @@ public class ScreenSaver
 
     public async void Initialize()
     {
-        timer.Interval = config.Server.ScreenSaverTimerInterval ?? timer.Interval;
-        preventLockStatus = await GetPreventLockStatus();
-        SetPreventLock();
+        timer.Interval = config.Server.ScreenSaverTimerInterval;
+        preventLockExpiredDate = await GetPreventLockExpiredDate();
+        preventLockStatus = GetPreventLockStatus(preventLockExpiredDate);
+        ReloadPreventLock();
     }
 
-    public void SetPreventLock()
+    public void ReloadPreventLock()
     {
         switch (preventLockStatus, config.Client.IsPreventLock)
         {
             case (ExtensionStatus.Valid, true):
-                SetScreenSaverTimeout(config.Server.ScreenSaverTimeout ?? 600);
+                SetScreenSaverTimeout(config.Server.ScreenSaverTimeout);
                 timer.Enabled = true;
                 logger.LogInformation("Prevent Lock running");
                 break;
@@ -70,26 +71,28 @@ public class ScreenSaver
         PreventLockStatusChanged?.Invoke(this, args);
     }
 
-    private async void OnConfigChanged(object? sender, EventArgs e)
+    private ExtensionStatus GetPreventLockStatus(DateTime? expiredDate)
     {
-        preventLockStatus = await GetPreventLockStatus();
-        SetPreventLock();
+        try
+        {
+            switch ((int?)(expiredDate == null ? null : DateTime.Now.CompareTo(expiredDate)))
+            {
+                case <= 0:
+                    return ExtensionStatus.Valid;
+                case > 0:
+                    return ExtensionStatus.Expired;
+                case null:
+                    return ExtensionStatus.Invalid;
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "{msg}", e.Message);
+            return ExtensionStatus.Invalid;
+        }
     }
 
-    private void OnTimedEvent(object? sender, ElapsedEventArgs e)
-    {
-        if (DateTime.Now.CompareTo(preventLockExpiredDate) <= 0)
-        {
-            ResetLockScreenTimer();
-        }
-        else
-        {
-            preventLockStatus = ExtensionStatus.Expired;
-            SetPreventLock();
-        }
-    }
-
-    private async Task<ExtensionStatus> GetPreventLockStatus(bool setExpiredDate = true)
+    private async Task<DateTime?> GetPreventLockExpiredDate()
     {
         Dictionary<string, string?> content = new()
         {
@@ -112,19 +115,36 @@ public class ScreenSaver
                     {
                         if (extension.Contains("PreventLock"))
                         {
-                            DateTime expire = DateTime.ParseExact(extension.Split('@')[1], "yyyyMMdd", CultureInfo.InvariantCulture).Add(new TimeSpan(23, 59, 59));
-                            preventLockExpiredDate = setExpiredDate == true ? expire : preventLockExpiredDate;
-                            return DateTime.Now.CompareTo(expire) <= 0 ? ExtensionStatus.Valid : ExtensionStatus.Expired;
+                            return DateTime.ParseExact(extension.Split('@')[1], "yyyyMMdd", CultureInfo.InvariantCulture).Add(new TimeSpan(23, 59, 59));
                         }
                     }
                 }
             }
-            return ExtensionStatus.Invalid;
+            return null;
         }
         catch (Exception e)
         {
             logger.LogError(e, "{msg}", e.Message);
-            return ExtensionStatus.Invalid;
+            return null;
+        }
+    }
+
+    private void OnConfigChanged(object? sender, EventArgs e)
+    {
+        Initialize();
+    }
+
+    private void OnTimedEvent(object? sender, ElapsedEventArgs e)
+    {
+        preventLockStatus = GetPreventLockStatus(preventLockExpiredDate);
+        switch (preventLockStatus)
+        {
+            case ExtensionStatus.Valid:
+                ResetLockScreenTimer();
+                break;
+            default:
+                ReloadPreventLock();
+                break;
         }
     }
 
@@ -164,5 +184,5 @@ public class ScreenSaver
 public class ScreenSaverEventArgs : EventArgs
 {
     public ExtensionStatus PreventLockStatus { get; set; }
-    public DateTime PreventLockExpiredDate { get; set; }
+    public DateTime? PreventLockExpiredDate { get; set; }
 }
