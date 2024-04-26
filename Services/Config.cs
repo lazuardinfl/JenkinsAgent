@@ -36,10 +36,7 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
         {
             if (showMessageBox)
             {
-                App.GetUIThread().Post(async () => {
-                    await MessageBox.Error("Connection failed. Make sure connected\n" +
-                                           "to server and bot config is valid!").ShowAsync();
-                });
+                MessageBoxHelper.ShowErrorFireForget("Connection failed. Make sure connected\nto server and bot config is valid!");
             }
             logger.LogError(e, "{msg}", e.Message);
             return false;

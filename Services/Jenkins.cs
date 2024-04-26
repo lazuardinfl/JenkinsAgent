@@ -1,3 +1,4 @@
+using Bot.Helpers;
 using Bot.Models;
 using Microsoft.Extensions.Logging;
 using System;
@@ -124,10 +125,7 @@ public class Jenkins
         bool isConnected = await Initialize() && await Connect();
         if (!isConnected && showMessageBox)
         {
-            App.GetUIThread().Post(async () => {
-                await MessageBox.Error("Connection failed. Make sure connected\n" +
-                                       "to server and bot config is valid!").ShowAsync();
-            });
+            MessageBoxHelper.ShowErrorFireForget("Connection failed. Make sure connected\nto server and bot config is valid!");
         }
         return isConnected;
     }
@@ -260,9 +258,7 @@ public class Jenkins
             if (!config.Client.IsAutoReconnect)
             {
                 Disconnect(false);
-                App.GetUIThread().Post(async () => {
-                    await MessageBox.Error("Disconnected from server").ShowAsync();
-                });
+                MessageBoxHelper.ShowErrorFireForget("Disconnected from server");
             }
         }
     }

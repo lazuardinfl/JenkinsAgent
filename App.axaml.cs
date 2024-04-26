@@ -89,6 +89,7 @@ public partial class App : Application
     {
         if (!mutex.WaitOne(0, false))
         {
+            MessageBoxHelper.ShowError("Application already running!");
             mutex.Dispose();
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime app)
             {

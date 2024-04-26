@@ -129,10 +129,7 @@ public class ScreenSaver
         }
     }
 
-    private void OnConfigChanged(object? sender, EventArgs e)
-    {
-        Initialize();
-    }
+    private void OnConfigChanged(object? sender, EventArgs e) => Initialize();
 
     private void OnTimedEvent(object? sender, ElapsedEventArgs e)
     {

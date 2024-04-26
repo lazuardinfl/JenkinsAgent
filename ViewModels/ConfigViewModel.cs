@@ -1,10 +1,10 @@
-using Bot.Models;
+using Bot.Helpers;
 using Bot.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using MsBox.Avalonia.Enums;
 using System;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace Bot.ViewModels;
 
@@ -46,8 +46,7 @@ public partial class ConfigViewModel : PageViewModelBase
     [RelayCommand]
     private async Task Apply()
     {
-        ButtonResult result = await MessageBox.QuestionYesNo("Save config", "Are you sure to apply bot config?").ShowAsync();
-        if (result == ButtonResult.Yes)
+        if (DialogResult.Yes == await MessageBoxHelper.ShowQuestionYesNoAsync("Save Config", "Are you sure to apply bot config?"))
         {
             config.Client.OrchestratorUrl = OrchestratorUrl;
             config.Client.BotId = BotId;

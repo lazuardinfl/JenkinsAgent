@@ -3,10 +3,10 @@ using Bot.Models;
 using Bot.ViewModels;
 using H.NotifyIcon.Core;
 using Microsoft.Extensions.Logging;
-using MsBox.Avalonia.Enums;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace Bot.Services;
 
@@ -29,6 +29,7 @@ public class AppTray
     private readonly PopupMenuItem exitMenuItem;
     private readonly PopupItem[] menuOrder;
     private TrayIconWithContextMenu tray;
+    private readonly NotifyIcon notify;
     private Action<Page> showMainWindow = null!;
 
     public AppTray(ILogger<AppTray> logger, Config config, Jenkins jenkins, ScreenSaver screenSaver)
@@ -69,6 +70,13 @@ public class AppTray
         jenkins.ConnectionChanged += OnConnectionChanged;
         screenSaver.PreventLockStatusChanged += OnPreventLockStatusChanged;
         tray = CreateSystemTray(true);
+        // test winform
+        notify = new()
+        {
+            Text = "Bot Agent",
+            Icon = new System.Drawing.Icon($"{App.BaseDir}/resources/normal.ico"),
+            Visible = true
+        };
     }
 
     public async void Initialize()
@@ -107,16 +115,15 @@ public class AppTray
     private async void Test()
     {
         await Task.Delay(10);
-        logger.LogInformation("TEST");
+        logger.LogInformation("Test on thread {threadId}", Environment.CurrentManagedThreadId);
         try
         {
-            //config.Client.OrchestratorUrl = config.Client.OrchestratorUrl!.Replace("http", "https");
-            //config.Client.OrchestratorUrl = config.Client.OrchestratorUrl.Replace("local", "test");
-            //HideMenu(screensaverSubMenu);
-            //HideMenu(configSubMenu);
-            //await Task.Delay(5000);
-            //ShowMenu(aboutMenuItem);
-            //ShowMenu(screensaverSubMenu);
+            notify.Visible = false;
+            await Task.Delay(4000);
+            notify.Visible = true;
+            notify.Text = "Bot Client";
+            notify.Icon = new System.Drawing.Icon($"{App.BaseDir}/resources/offline.ico");
+            logger.LogInformation("Test on thread {threadId}", Environment.CurrentManagedThreadId);
         }
         catch (Exception e)
         {
@@ -126,10 +133,8 @@ public class AppTray
 
     private async void AutoStartup()
     {
-        ButtonResult result = await App.GetUIThread().InvokeAsync(async () => {
-            return await MessageBox.QuestionYesNo("Auto Startup", $"Are you sure to {(startupMenuItem.Checked ? "disable" : "enable")} auto startup?").ShowAsync();
-        });
-        if (result == ButtonResult.Yes)
+        string msg = $"Are you sure to {(startupMenuItem.Checked ? "disable" : "enable")} auto startup?";
+        if (DialogResult.Yes == await MessageBoxHelper.ShowQuestionYesNoAsync("Auto Startup", msg))
         {
             if (TaskSchedulerHelper.Enable(config.Server.TaskSchedulerName, !startupMenuItem.Checked))
             {
@@ -137,20 +142,15 @@ public class AppTray
             }
             else
             {
-                App.GetUIThread().Post(async () => {
-                    await MessageBox.Error("You need to run program as admin\n" +
-                                           "and make sure bot config is valid!").ShowAsync();
-                });   
+                MessageBoxHelper.ShowErrorFireForget("You need to run program as admin\nand make sure bot config is valid!");
             }
         }
     }
 
     private async void PreventLock()
     {
-        ButtonResult result = await App.GetUIThread().InvokeAsync(async () => {
-            return await MessageBox.QuestionYesNo("Prevent Lock", $"Are you sure to {(config.Client.IsPreventLock ? "disable" : "enable")} prevent lock?").ShowAsync();
-        });
-        if (result == ButtonResult.Yes)
+        string msg = $"Are you sure to {(config.Client.IsPreventLock ? "disable" : "enable")} prevent lock?";
+        if (DialogResult.Yes == await MessageBoxHelper.ShowQuestionYesNoAsync("Prevent Lock", msg))
         {
             config.Client.IsPreventLock = !config.Client.IsPreventLock;
             preventlockMenuItem.Checked = config.Client.IsPreventLock;
@@ -181,30 +181,28 @@ public class AppTray
 
     private async void Connect()
     {
-        ButtonResult result;
+        string msg;
         switch (jenkins.Status)
         {
             case ConnectionStatus.Connected:
-                result = await App.GetUIThread().InvokeAsync(async () => {
-                    return await MessageBox.QuestionYesNo("Disconnect", "Are you sure to disconnect from the server?").ShowAsync();
-                });
-                if (result == ButtonResult.Yes) { jenkins.Disconnect(); }
+                msg = "Are you sure to disconnect from the server?";
+                if (DialogResult.Yes == await MessageBoxHelper.ShowQuestionYesNoAsync("Disconnect", msg)) {
+                    jenkins.Disconnect(); 
+                }
                 break;
             case ConnectionStatus.Disconnected:
-                result = await App.GetUIThread().InvokeAsync(async () => {
-                    return await MessageBox.QuestionYesNo("Connect", "Are you sure to connect to the server?").ShowAsync();
-                });
-                if (result == ButtonResult.Yes) { await jenkins.ReloadConnection(true); }
+                msg = "Are you sure to connect to the server?";
+                if (DialogResult.Yes == await MessageBoxHelper.ShowQuestionYesNoAsync("Connect", msg)) {
+                    await jenkins.ReloadConnection(true);
+                }
                 break;
         }
     }
 
     private async void AutoReconnect()
     {
-        ButtonResult result = await App.GetUIThread().InvokeAsync(async () => {
-            return await MessageBox.QuestionYesNo("Auto Reconnect", $"Are you sure to {(config.Client.IsAutoReconnect ? "disable" : "enable")} auto reconnect?").ShowAsync();
-        });
-        if (result == ButtonResult.Yes)
+        string msg = $"Are you sure to {(config.Client.IsAutoReconnect ? "disable" : "enable")} auto reconnect?";
+        if (DialogResult.Yes == await MessageBoxHelper.ShowQuestionYesNoAsync("Auto Reconnect", msg))
         {
             switch (jenkins.Status, config.Client.IsAutoReconnect)
             {
@@ -249,10 +247,8 @@ public class AppTray
 
     private async void Reload()
     {
-        ButtonResult result = await App.GetUIThread().InvokeAsync(async () => {
-            return await MessageBox.QuestionYesNo("Reload", $"Are you sure to reload config?\nConnection will be reset").ShowAsync();
-        });
-        if (result == ButtonResult.Yes)
+        string msg = "Are you sure to reload config?\nConnection will be reset";
+        if (DialogResult.Yes == await MessageBoxHelper.ShowQuestionYesNoAsync("Reload", msg))
         {
             await config.Reload();
             config.RaiseChanged(this, EventArgs.Empty);
@@ -261,10 +257,8 @@ public class AppTray
 
     private async void Reset()
     {
-        ButtonResult result = await App.GetUIThread().InvokeAsync(async () => {
-            return await MessageBox.QuestionYesNo("Reset", $"Are you sure to reset config?\nYour current config will be deleted").ShowAsync();
-        });
-        if (result == ButtonResult.Yes)
+        string msg = "Are you sure to reset config?\nYour current config will be deleted";
+        if (DialogResult.Yes == await MessageBoxHelper.ShowQuestionYesNoAsync("Reset", msg))
         {
             config.Client = new();
             config.Server = new();
@@ -304,14 +298,14 @@ public class AppTray
 
     private async void Exit()
     {
-        ButtonResult result = await App.GetUIThread().InvokeAsync(async () => {
-            return await MessageBox.QuestionOkCancel("Exit", $"Are you sure to exit?").ShowAsync();
-        });
-        if (result == ButtonResult.Ok)
+        if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Exit", "Are you sure to exit?"))
         {
             jenkins.Disconnect();
             tray.Dispose();
+            notify.Visible = false; // test winform
+            notify.Dispose(); // test winform
             await App.Exit();
+            Application.Exit(); // test winform
             Environment.Exit(0);
         }
     }
