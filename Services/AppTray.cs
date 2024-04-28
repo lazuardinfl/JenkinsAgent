@@ -29,7 +29,6 @@ public class AppTray
     private readonly PopupMenuItem exitMenuItem;
     private readonly PopupItem[] menuOrder;
     private TrayIconWithContextMenu tray;
-    private readonly NotifyIcon notify;
     private Action<Page> showMainWindow = null!;
 
     public AppTray(ILogger<AppTray> logger, Config config, Jenkins jenkins, ScreenSaver screenSaver)
@@ -70,13 +69,6 @@ public class AppTray
         jenkins.ConnectionChanged += OnConnectionChanged;
         screenSaver.PreventLockStatusChanged += OnPreventLockStatusChanged;
         tray = CreateSystemTray(true);
-        // test winform
-        notify = new()
-        {
-            Text = "Bot Agent",
-            Icon = new System.Drawing.Icon($"{App.BaseDir}/resources/normal.ico"),
-            Visible = true
-        };
     }
 
     public async void Initialize()
@@ -118,12 +110,7 @@ public class AppTray
         logger.LogInformation("Test on thread {threadId}", Environment.CurrentManagedThreadId);
         try
         {
-            notify.Visible = false;
-            await Task.Delay(4000);
-            notify.Visible = true;
-            notify.Text = "Bot Client";
-            notify.Icon = new System.Drawing.Icon($"{App.BaseDir}/resources/offline.ico");
-            logger.LogInformation("Test on thread {threadId}", Environment.CurrentManagedThreadId);
+            //
         }
         catch (Exception e)
         {
@@ -134,7 +121,7 @@ public class AppTray
     private async void AutoStartup()
     {
         string msg = $"Are you sure to {(startupMenuItem.Checked ? "disable" : "enable")} auto startup?";
-        if (DialogResult.Yes == await MessageBoxHelper.ShowQuestionYesNoAsync("Auto Startup", msg))
+        if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Startup", msg))
         {
             if (TaskSchedulerHelper.Enable(config.Server.TaskSchedulerName, !startupMenuItem.Checked))
             {
@@ -150,7 +137,7 @@ public class AppTray
     private async void PreventLock()
     {
         string msg = $"Are you sure to {(config.Client.IsPreventLock ? "disable" : "enable")} prevent lock?";
-        if (DialogResult.Yes == await MessageBoxHelper.ShowQuestionYesNoAsync("Prevent Lock", msg))
+        if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Prevent Lock", msg))
         {
             config.Client.IsPreventLock = !config.Client.IsPreventLock;
             preventlockMenuItem.Checked = config.Client.IsPreventLock;
@@ -186,13 +173,13 @@ public class AppTray
         {
             case ConnectionStatus.Connected:
                 msg = "Are you sure to disconnect from the server?";
-                if (DialogResult.Yes == await MessageBoxHelper.ShowQuestionYesNoAsync("Disconnect", msg)) {
+                if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Disconnect", msg)) {
                     jenkins.Disconnect(); 
                 }
                 break;
             case ConnectionStatus.Disconnected:
                 msg = "Are you sure to connect to the server?";
-                if (DialogResult.Yes == await MessageBoxHelper.ShowQuestionYesNoAsync("Connect", msg)) {
+                if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Connect", msg)) {
                     await jenkins.ReloadConnection(true);
                 }
                 break;
@@ -202,7 +189,7 @@ public class AppTray
     private async void AutoReconnect()
     {
         string msg = $"Are you sure to {(config.Client.IsAutoReconnect ? "disable" : "enable")} auto reconnect?";
-        if (DialogResult.Yes == await MessageBoxHelper.ShowQuestionYesNoAsync("Auto Reconnect", msg))
+        if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Reconnect", msg))
         {
             switch (jenkins.Status, config.Client.IsAutoReconnect)
             {
@@ -248,7 +235,7 @@ public class AppTray
     private async void Reload()
     {
         string msg = "Are you sure to reload config?\nConnection will be reset";
-        if (DialogResult.Yes == await MessageBoxHelper.ShowQuestionYesNoAsync("Reload", msg))
+        if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Reload", msg))
         {
             await config.Reload();
             config.RaiseChanged(this, EventArgs.Empty);
@@ -258,7 +245,7 @@ public class AppTray
     private async void Reset()
     {
         string msg = "Are you sure to reset config?\nYour current config will be deleted";
-        if (DialogResult.Yes == await MessageBoxHelper.ShowQuestionYesNoAsync("Reset", msg))
+        if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Reset", msg))
         {
             config.Client = new();
             config.Server = new();
@@ -298,14 +285,11 @@ public class AppTray
 
     private async void Exit()
     {
-        if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Exit", "Are you sure to exit?"))
+        if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Exit", "Are you sure to exit application?"))
         {
             jenkins.Disconnect();
             tray.Dispose();
-            notify.Visible = false; // test winform
-            notify.Dispose(); // test winform
             await App.Exit();
-            Application.Exit(); // test winform
             Environment.Exit(0);
         }
     }

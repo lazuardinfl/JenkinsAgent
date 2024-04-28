@@ -46,7 +46,7 @@ public partial class ConfigViewModel : PageViewModelBase
     [RelayCommand]
     private async Task Apply()
     {
-        if (DialogResult.Yes == await MessageBoxHelper.ShowQuestionYesNoAsync("Save Config", "Are you sure to apply bot config?"))
+        if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Save Config", "Are you sure to apply bot config?"))
         {
             config.Client.OrchestratorUrl = OrchestratorUrl;
             config.Client.BotId = BotId;
