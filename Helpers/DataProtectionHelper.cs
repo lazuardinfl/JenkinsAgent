@@ -1,79 +1,64 @@
 using System;
-using System.IO;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace Bot.Helpers;
 
 public static class DataProtectionHelper
-{
-    public static byte[] CreateRandomEntropy()
+{    
+    public static string? Base64Encode(string? text) 
     {
-        // Create a byte array to hold the random value.
-        byte[] entropy = new byte[16];
-
-        // Create a new instance of the RandomNumberGenerator.
-        // Fill the array with a random value.
-        using (var rng = RandomNumberGenerator.Create())
+        try
         {
-            rng.GetBytes(entropy);
+            byte[] textBytes = Encoding.UTF8.GetBytes(text!);
+            return Convert.ToBase64String(textBytes);
         }
-
-        // Return the array.
-        return entropy;
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
-    public static int EncryptDataToStream(byte[] Buffer, byte[] Entropy, DataProtectionScope Scope, Stream S)
+    public static string? Base64Decode(string? text) 
     {
-        ArgumentNullException.ThrowIfNull(Buffer);
-        if (Buffer.Length <= 0)
-            throw new ArgumentException("The buffer length was 0.", nameof(Buffer));
-        ArgumentNullException.ThrowIfNull(Entropy);
-        if (Entropy.Length <= 0)
-            throw new ArgumentException("The entropy length was 0.", nameof(Entropy));
-        ArgumentNullException.ThrowIfNull(S);
-
-        int length = 0;
-
-        // Encrypt the data and store the result in a new byte array. The original data remains unchanged.
-        byte[] encryptedData = ProtectedData.Protect(Buffer, Entropy, Scope);
-
-        // Write the encrypted data to a stream.
-        if (S.CanWrite && encryptedData != null)
+        try
         {
-            S.Write(encryptedData, 0, encryptedData.Length);
-
-            length = encryptedData.Length;
+            byte[] textBytes = Convert.FromBase64String(text!);
+            return Encoding.UTF8.GetString(textBytes);
         }
-
-        // Return the length that was written to the stream.
-        return length;
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
-    public static byte[] DecryptDataFromStream(byte[] Entropy, DataProtectionScope Scope, Stream S, int Length)
+    public static string? EncryptDataAsText(string? data, string? entropy, bool isUserScope = true)
     {
-        ArgumentNullException.ThrowIfNull(S);
-        if (Length <= 0 )
-            throw new ArgumentException("The given length was 0.", nameof(Length));
-        ArgumentNullException.ThrowIfNull(Entropy);
-        if (Entropy.Length <= 0)
-            throw new ArgumentException("The entropy length was 0.", nameof(Entropy));
-
-        byte[] inBuffer = new byte[Length];
-        byte[] outBuffer;
-
-        // Read the encrypted data from a stream.
-        if (S.CanRead)
+        try
         {
-            S.Read(inBuffer, 0, Length);
-
-            outBuffer = ProtectedData.Unprotect(inBuffer, Entropy, Scope);
+            byte[] dataBytes = Encoding.UTF8.GetBytes(data!);
+            byte[]? entropyBytes = entropy != null ? Encoding.UTF8.GetBytes(entropy) : null;
+            byte[] encryptedData = ProtectedData.Protect(dataBytes, entropyBytes, isUserScope ? DataProtectionScope.CurrentUser : DataProtectionScope.LocalMachine);
+            return Convert.ToBase64String(encryptedData);
         }
-        else
+        catch (Exception)
         {
-            throw new IOException("Could not read the stream.");
+            return null;
         }
+    }
 
-        // Return the decrypted data
-        return outBuffer;
+    public static string? DecryptDataAsText(string? data, string? entropy, bool isUserScope = true)
+    {
+        try
+        {
+            byte[] dataBytes = Convert.FromBase64String(data!);
+            byte[]? entropyBytes = entropy != null ? Encoding.UTF8.GetBytes(entropy) : null;
+            byte[] decryptedData = ProtectedData.Unprotect(dataBytes, entropyBytes, isUserScope ? DataProtectionScope.CurrentUser : DataProtectionScope.LocalMachine);
+            return Encoding.UTF8.GetString(decryptedData);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 }

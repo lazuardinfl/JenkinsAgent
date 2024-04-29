@@ -50,6 +50,8 @@ public partial class ConfigViewModel : PageViewModelBase
         {
             config.Client.OrchestratorUrl = OrchestratorUrl;
             config.Client.BotId = BotId;
+            BotToken = Helper.RemoveWhitespaces(BotToken ?? "");
+            BotToken = DataProtectionHelper.EncryptDataAsText(BotToken, DataProtectionHelper.Base64Encode(BotId));
             config.Client.BotToken = BotToken;
             Hide();
             await config.Save();

@@ -1,3 +1,4 @@
+using Bot.Helpers;
 using Bot.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -100,7 +101,7 @@ public class ScreenSaver
             { "client_secret", config.Server.ExtensionAuthSecret },
             { "grant_type", "password" },
             { "username", config.Client.BotId },
-            { "password", config.Client.BotToken }
+            { "password", DataProtectionHelper.DecryptDataAsText(config.Client.BotToken, DataProtectionHelper.Base64Encode(config.Client.BotId)) }
         };
         try
         {

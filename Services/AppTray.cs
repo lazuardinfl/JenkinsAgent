@@ -74,7 +74,7 @@ public class AppTray
     public async void Initialize()
     {
         await Task.Run(Agent.Mre.WaitOne);
-        //HideMenu(testMenuItem);
+        HideMenu(testMenuItem);
         startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
         preventlockMenuItem.Enabled = false;
         HideMenu(screensaverSubMenu);
@@ -110,7 +110,14 @@ public class AppTray
         logger.LogInformation("Test on thread {threadId}", Environment.CurrentManagedThreadId);
         try
         {
-            //
+            //string entropy = DataProtectionHelper.Base64Encode(config.Client.BotId!)!;
+            //logger.LogInformation("{data}", config.Client.BotId);
+            //logger.LogInformation("{data}", entropy);
+            //string encrypted = DataProtectionHelper.EncryptDataAsText(config.Client.BotId, entropy)!;
+            //logger.LogInformation("{data}", encrypted);
+            //string decrypted = DataProtectionHelper.DecryptDataAsText(encrypted, entropy)!;
+            //logger.LogInformation("{data}", decrypted);
+
         }
         catch (Exception e)
         {

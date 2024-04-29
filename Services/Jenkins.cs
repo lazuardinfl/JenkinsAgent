@@ -80,7 +80,7 @@ public class Jenkins
             process.StartInfo.FileName = $"{App.ProfileDir}/{config.Server.JavaPath}/java.exe";
             process.StartInfo.Arguments = $"-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT -jar {config.Server.AgentPath} " +
                                             $"-jnlpUrl {config.Client.OrchestratorUrl}/computer/{config.Client.BotId}/jenkins-agent.jnlp " +
-                                            $"-secret {config.Client.BotToken}";
+                                            $"-secret {DataProtectionHelper.DecryptDataAsText(config.Client.BotToken, DataProtectionHelper.Base64Encode(config.Client.BotId))}";
             process.StartInfo.WorkingDirectory = App.ProfileDir;
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.CreateNoWindow = true;
@@ -246,7 +246,7 @@ public class Jenkins
             mre.Set();
         }
         // disconnected at first time
-        else if (e.Data.Contains("Failed to obtain") || e.Data.Contains("buffer too short") ||
+        else if (e.Data.Contains("Failed to obtain") || e.Data.Contains("buffer too short") || e.Data.Contains("For input string") ||
                  e.Data.Contains("SEVERE: Handshake error") || e.Data.Contains("Invalid byte"))
         {
             mre.Set();
