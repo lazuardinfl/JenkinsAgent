@@ -29,6 +29,7 @@ public partial class App : Application
     private readonly IHost host;
     private readonly Config config;
     private readonly AppTray tray;
+    private readonly SystemTray systemTray;
     private readonly Agent agent;
 
     public App()
@@ -51,16 +52,19 @@ public partial class App : Application
         builder.Services.AddSingleton<Jenkins>();
         builder.Services.AddSingleton<Agent>();
         builder.Services.AddSingleton<AppTray>();
+        builder.Services.AddSingleton<SystemTray>();
         host = builder.Build();
         config = host.Services.GetRequiredService<Config>();
         agent = host.Services.GetRequiredService<Agent>();
         tray = host.Services.GetRequiredService<AppTray>();
+        systemTray = host.Services.GetRequiredService<SystemTray>();
     }
 
     public override void Initialize()
     {
         agent.Initialize();
         tray.Initialize();
+        systemTray.Initialize();
         AvaloniaXamlLoader.Load(this);
     }
 

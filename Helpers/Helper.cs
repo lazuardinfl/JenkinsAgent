@@ -22,8 +22,5 @@ public static partial class Helper
 
     [GeneratedRegex(@"\s")]
     private static partial Regex WhitespaceRegex();
-    public static string RemoveWhitespaces(string source)
-    {
-        return WhitespaceRegex().Replace(source, string.Empty);
-    }
+    public static string RemoveWhitespaces(string text) => WhitespaceRegex().Replace(text, string.Empty);
 }

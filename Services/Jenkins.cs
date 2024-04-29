@@ -247,7 +247,7 @@ public class Jenkins
         }
         // disconnected at first time
         else if (e.Data.Contains("Failed to obtain") || e.Data.Contains("buffer too short") || e.Data.Contains("For input string") ||
-                 e.Data.Contains("SEVERE: Handshake error") || e.Data.Contains("Invalid byte"))
+                 e.Data.Contains("SEVERE: Handshake error") || e.Data.Contains("Invalid byte") || e.Data.Contains("takes an operand"))
         {
             mre.Set();
         }

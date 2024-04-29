@@ -51,7 +51,7 @@ public sealed class ServerConfig
 
     public ServerConfig()
     {
-        ConnectTimeout = 10000;
+        ConnectTimeout = 7000;
         ScreenSaverTimeout = 600;
         ScreenSaverTimerInterval = 50000;
     }
@@ -59,7 +59,7 @@ public sealed class ServerConfig
     [JsonConstructor]
     public ServerConfig(string? agentUrl, string? agentPath, string? agentVersion, string? javaUrl, string? javaPath, string? javaVersion,
                         string? jnlpUrl, string? taskSchedulerName, string? extensionAuthUrl, string? extensionAuthId, string? extensionAuthSecret,
-                        int connectTimeout = 10000, int screenSaverTimeout = 600, int screenSaverTimerInterval = 50000)
+                        int connectTimeout = 7000, int screenSaverTimeout = 600, int screenSaverTimerInterval = 50000)
     {
         (AgentUrl, AgentPath, AgentVersion, JavaUrl, JavaPath, JavaVersion) = (agentUrl, agentPath, agentVersion, javaUrl, javaPath, javaVersion);
         (JnlpUrl, TaskSchedulerName, ExtensionAuthUrl, ExtensionAuthId, ExtensionAuthSecret) = (jnlpUrl, taskSchedulerName, extensionAuthUrl, extensionAuthId, extensionAuthSecret);
