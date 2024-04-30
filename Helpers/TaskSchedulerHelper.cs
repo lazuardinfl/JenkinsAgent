@@ -25,13 +25,13 @@ public static class TaskSchedulerHelper
         {
             using (TaskDefinition definition = TaskService.Instance.NewTask())
             {
-                definition.Actions.Add("cmd", $"/c start \"\" \"{appName}\"", workingDirectory.Replace("/", @"\"));
+                definition.Actions.Add("cmd", $"/c start \"\" \"{appName}\" startup", workingDirectory.Replace("/", @"\"));
                 definition.Triggers.Add(new LogonTrigger { Delay = TimeSpan.FromMinutes(1) });
                 definition.Principal.RunLevel = TaskRunLevel.Highest;
                 definition.Settings.DisallowStartIfOnBatteries = false;
                 definition.Settings.StopIfGoingOnBatteries = false;
                 definition.Settings.Enabled = enabled;
-                TaskService.Instance.RootFolder.RegisterTaskDefinition(name?.Replace("/", @"\"), definition);
+                TaskService.Instance.RootFolder.RegisterTaskDefinition(name?.Replace("/", @"\") ?? " ", definition);
             }
             return true;
         }

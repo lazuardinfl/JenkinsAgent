@@ -1,6 +1,7 @@
 using Bot.Helpers;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,7 +21,8 @@ public class Agent(ILogger<Agent> logger, Config config, Jenkins jenkins, Screen
         }
         Mre.Set();
         await Task.Run(App.Mre.WaitOne);
-        if (!(isConfigValid && await jenkins.ReloadConnection(true))) { logger.LogError("Initialize failed"); }
+        bool atStartup = (App.Lifetime().Args ?? []).Contains("startup");
+        if (!(isConfigValid && await jenkins.ReloadConnection(atStartup))) { logger.LogError("Initialize failed"); }
         screenSaver.Initialize();
     }
 

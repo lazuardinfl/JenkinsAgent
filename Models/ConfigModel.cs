@@ -42,6 +42,7 @@ public sealed class ServerConfig
     public string? JavaVersion { get; set; }
     public string? JnlpUrl { get; set; }
     public int ConnectTimeout { get; set; }
+    public int StartupConnectTimeout { get; set; }
     public string? TaskSchedulerName { get; set; }
     public string? ExtensionAuthUrl { get; set; }
     public string? ExtensionAuthId { get; set; }
@@ -51,7 +52,8 @@ public sealed class ServerConfig
 
     public ServerConfig()
     {
-        ConnectTimeout = 7000;
+        ConnectTimeout = 10000;
+        StartupConnectTimeout = 120000;
         ScreenSaverTimeout = 600;
         ScreenSaverTimerInterval = 50000;
     }
@@ -59,12 +61,10 @@ public sealed class ServerConfig
     [JsonConstructor]
     public ServerConfig(string? agentUrl, string? agentPath, string? agentVersion, string? javaUrl, string? javaPath, string? javaVersion,
                         string? jnlpUrl, string? taskSchedulerName, string? extensionAuthUrl, string? extensionAuthId, string? extensionAuthSecret,
-                        int connectTimeout = 7000, int screenSaverTimeout = 600, int screenSaverTimerInterval = 50000)
+                        int connectTimeout = 10000, int startupConnectTimeout = 120000, int screenSaverTimeout = 600, int screenSaverTimerInterval = 50000)
     {
         (AgentUrl, AgentPath, AgentVersion, JavaUrl, JavaPath, JavaVersion) = (agentUrl, agentPath, agentVersion, javaUrl, javaPath, javaVersion);
         (JnlpUrl, TaskSchedulerName, ExtensionAuthUrl, ExtensionAuthId, ExtensionAuthSecret) = (jnlpUrl, taskSchedulerName, extensionAuthUrl, extensionAuthId, extensionAuthSecret);
-        ConnectTimeout = connectTimeout;
-        ScreenSaverTimeout = screenSaverTimeout;
-        ScreenSaverTimerInterval = screenSaverTimerInterval;
+        (ConnectTimeout, StartupConnectTimeout, ScreenSaverTimeout, ScreenSaverTimerInterval) = (connectTimeout, startupConnectTimeout, screenSaverTimeout, screenSaverTimerInterval);
     }
 }

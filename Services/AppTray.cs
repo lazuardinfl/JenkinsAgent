@@ -187,7 +187,7 @@ public class AppTray
             case ConnectionStatus.Disconnected:
                 msg = "Are you sure to connect to the server?";
                 if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Connect", msg)) {
-                    await jenkins.ReloadConnection(true);
+                    await jenkins.ReloadConnection();
                 }
                 break;
         }
@@ -204,7 +204,7 @@ public class AppTray
                     jenkins.Disconnect(false);
                     break;
                 case (ConnectionStatus.Disconnected, false):
-                    await jenkins.ReloadConnection(true);
+                    await jenkins.ReloadConnection();
                     break;
             }
             config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;

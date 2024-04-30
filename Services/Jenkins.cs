@@ -71,7 +71,7 @@ public class Jenkins
         return isReady;
     }
 
-    public async Task<bool> Connect()
+    public async Task<bool> Connect(bool atStartup = false)
     {
         try
         {
@@ -93,7 +93,7 @@ public class Jenkins
             process.Start();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
-            await Task.Run(() => mre.WaitOne(config.Server.ConnectTimeout));
+            await Task.Run(() => mre.WaitOne(atStartup ? config.Server.StartupConnectTimeout : config.Server.ConnectTimeout));
         }
         catch (Exception e)
         {
@@ -120,14 +120,14 @@ public class Jenkins
         }
     }
 
-    public async Task<bool> ReloadConnection(bool showMessageBox = false)
+    public async Task<bool> ReloadConnection(bool atStartup = false)
     {
-        bool isConnected = await Initialize() && await Connect();
-        if (!isConnected && showMessageBox)
+        if (!(await Initialize() && await Connect(atStartup)))
         {
             MessageBoxHelper.ShowErrorFireForget("Connection failed. Make sure connected\nto server and bot config is valid!");
+            return false;
         }
-        return isConnected;
+        return true;
     }
 
     private bool IsJavaVersionCompatible()
@@ -230,7 +230,7 @@ public class Jenkins
         if (Status == ConnectionStatus.Connected || config.Client.IsAutoReconnect)
         {
             Disconnect(false);
-            await ReloadConnection(true);
+            await ReloadConnection();
         }
     }
 

@@ -30,7 +30,6 @@ public class SystemTray
         exitMenuItem = new("Exit", null, (_, _) => Exit());
         contextMenu = new()
         {
-            DefaultDropDownDirection = ToolStripDropDownDirection.AboveRight,
             Items = {
                 exitMenuItem
             }
