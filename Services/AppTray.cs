@@ -73,7 +73,7 @@ public class AppTray
     public async void Initialize()
     {
         await Task.Run(Agent.Mre.WaitOne);
-        testMenuItem.Available = false;
+        //testMenuItem.Available = false;
         startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
         preventlockMenuItem.Enabled = false;
         screensaverSubMenu.Available = false;

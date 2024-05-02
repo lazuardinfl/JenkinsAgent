@@ -20,7 +20,8 @@
                      FontSize="16"
                      Text="{Binding OrchestratorUrl}"
                      Watermark="Orchestrator URL"
-                     UseFloatingWatermark="True" />
+                     UseFloatingWatermark="True"
+                     ToolTip.Tip="e.g. https://orchestrator.domain.com" />
             <TextBox VerticalAlignment="Center"
                      FontSize="16"
                      Text="{Binding BotId}"
