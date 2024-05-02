@@ -27,7 +27,7 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
             Client = JsonSerializer.Deserialize<ClientConfig>(clientConfig)!;
             using (HttpClient httpClient = httpClientFactory.CreateClient())
             {
-                string serverConfig = await httpClient.GetStringAsync($"{Client.OrchestratorUrl}/{Client.SettingsUrl}");
+                string serverConfig = await httpClient.GetStringAsync(Helper.CreateUrl(Client.OrchestratorUrl, Client.SettingsUrl));
                 Server = JsonSerializer.Deserialize<ServerConfig>(serverConfig)!;
             }
             return true;

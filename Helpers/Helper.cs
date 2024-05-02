@@ -20,30 +20,25 @@ public static partial class Helper
 
     public static string GetUserDir() => Environment.GetEnvironmentVariable("USERPROFILE")!;
 
-    public static string? CreateUrl(string? url1, string? url2 = null)
+    public static string? CreateUrl(string? url1, string? url2 = null, bool trim = true)
     {
-        string? url = "";
         try
         {
-            switch (url1?.Contains("://"))
+            string? url = (url1?.Contains("://")) switch
             {
-                case true:
-                    url = url1.TrimEnd('/');
-                    break;
-                default:
-                    url = (new UriBuilder(url1!) { Scheme = Uri.UriSchemeHttps, Port = -1 }).Uri.AbsoluteUri.TrimEnd('/');
-                    break;
-            }
+                true => url1,
+                _ => new UriBuilder(url1!) { Scheme = Uri.UriSchemeHttps, Port = -1 }.Uri.AbsoluteUri,
+            };
             switch ((bool?)(url2 == null ? null : Uri.IsWellFormedUriString(url2, UriKind.Absolute)))
             {
                 case true:
                     url = url2;
                     break;
                 case false:
-                    url = $"{url}/{url2}";
+                    url = $"{url.TrimEnd('/')}/{url2}";
                     break;
             }
-            return url;
+            return trim ? url?.TrimEnd('/') : url;
         }
         catch (Exception)
         {

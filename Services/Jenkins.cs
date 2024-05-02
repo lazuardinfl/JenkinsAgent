@@ -151,7 +151,7 @@ public class Jenkins
         {
             using (HttpClient httpClient = httpClientFactory.CreateClient())
             {
-                using (HttpResponseMessage response = await httpClient.GetAsync($"{config.Client.OrchestratorUrl}/{config.Server.JavaUrl}"))
+                using (HttpResponseMessage response = await httpClient.GetAsync(Helper.CreateUrl(config.Client.OrchestratorUrl, config.Server.JavaUrl)))
                 {
                     using (Stream stream = await response.Content.ReadAsStreamAsync())
                     {
@@ -205,7 +205,7 @@ public class Jenkins
         {
             using (HttpClient httpClient = httpClientFactory.CreateClient())
             {
-                using (HttpResponseMessage response = await httpClient.GetAsync($"{config.Client.OrchestratorUrl}/{config.Server.AgentUrl}"))
+                using (HttpResponseMessage response = await httpClient.GetAsync(Helper.CreateUrl(config.Client.OrchestratorUrl, config.Server.AgentUrl)))
                 {
                     using (Stream stream = await response.Content.ReadAsStreamAsync())
                     {

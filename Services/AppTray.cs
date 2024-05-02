@@ -91,7 +91,13 @@ public class AppTray
         logger.LogInformation("Test on thread {threadId}", Environment.CurrentManagedThreadId);
         try
         {
-            //
+            logger.LogInformation("{data}", Helper.CreateUrl("test.local"));
+            logger.LogInformation("{data}", Helper.CreateUrl("test.local", null, false));
+            logger.LogInformation("{data}", Helper.CreateUrl("http://test.local/", null, false));
+            logger.LogInformation("{data}", Helper.CreateUrl("https://test.local/", "sub/path/", false));
+            logger.LogInformation("{data}", Helper.CreateUrl(config.Client.OrchestratorUrl));
+            logger.LogInformation("{data}", Helper.CreateUrl(config.Client.OrchestratorUrl, config.Server.JavaUrl));
+            logger.LogInformation("{data}", Helper.CreateUrl(config.Client.OrchestratorUrl, config.Server.ExtensionAuthUrl));
         }
         catch (Exception e)
         {

@@ -107,7 +107,7 @@ public class ScreenSaver
         {
             using (HttpClient httpClient = httpClientFactory.CreateClient())
             {
-                using (HttpResponseMessage response = await httpClient.PostAsync(config.Server.ExtensionAuthUrl, new FormUrlEncodedContent(content)))
+                using (HttpResponseMessage response = await httpClient.PostAsync(Helper.CreateUrl(config.Client.OrchestratorUrl, config.Server.ExtensionAuthUrl), new FormUrlEncodedContent(content)))
                 {
                     JsonNode jsonResponse = JsonNode.Parse(await response.Content.ReadAsStringAsync())!;
                     JsonWebToken token = new(jsonResponse["access_token"]?.GetValue<string>());

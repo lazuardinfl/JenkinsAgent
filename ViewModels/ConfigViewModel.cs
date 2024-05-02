@@ -48,6 +48,7 @@ public partial class ConfigViewModel : PageViewModelBase
     {
         if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Save Config", "Are you sure to apply bot config?"))
         {
+            OrchestratorUrl = Helper.CreateUrl(OrchestratorUrl);
             config.Client.OrchestratorUrl = OrchestratorUrl;
             config.Client.BotId = BotId;
             if (config.Client.BotToken != BotToken)
