@@ -1,7 +1,6 @@
 using Bot.Helpers;
 using Bot.Models;
 using Bot.ViewModels;
-using H.NotifyIcon.Core;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -17,18 +16,15 @@ public class AppTray
     private readonly Jenkins jenkins;
     private readonly ScreenSaver screenSaver;
     private readonly Dictionary<BotIcon, string> icons;
-    private readonly PopupMenuItem testMenuItem;
-    private readonly PopupMenuItem startupMenuItem;
-    private readonly PopupSubMenu screensaverSubMenu;
-    private readonly PopupMenuItem preventlockMenuItem, expiredMenuItem;
-    private readonly PopupSubMenu connectionSubMenu;
-    private readonly PopupMenuItem reconnectMenuItem, connectMenuItem;
-    private readonly PopupSubMenu configSubMenu;
-    private readonly PopupMenuItem botMenuItem, reloadMenuItem, resetMenuItem;
-    private readonly PopupMenuItem aboutMenuItem;
-    private readonly PopupMenuItem exitMenuItem;
-    private readonly PopupItem[] menuOrder;
-    private TrayIconWithContextMenu tray;
+    private readonly ToolStripMenuItem testMenuItem;
+    private readonly ToolStripMenuItem startupMenuItem;
+    private readonly ToolStripMenuItem screensaverSubMenu, preventlockMenuItem, expiredMenuItem;
+    private readonly ToolStripMenuItem connectionSubMenu, reconnectMenuItem, connectMenuItem;
+    private readonly ToolStripMenuItem configSubMenu, botMenuItem, reloadMenuItem, resetMenuItem;
+    private readonly ToolStripMenuItem aboutMenuItem;
+    private readonly ToolStripMenuItem exitMenuItem;
+    private readonly ContextMenuStrip contextMenu;
+    private readonly NotifyIcon tray;
     private Action<Page> showMainWindow = null!;
 
     public AppTray(ILogger<AppTray> logger, Config config, Jenkins jenkins, ScreenSaver screenSaver)
@@ -41,68 +37,53 @@ public class AppTray
             { BotIcon.Normal, $"{App.BaseDir}/resources/normal.ico" },
             { BotIcon.Offline, $"{App.BaseDir}/resources/offline.ico" }
         };
-        testMenuItem = new("Test", (_, _) => Test());
-        startupMenuItem = new("Auto Startup", (_, _) => AutoStartup());
-        preventlockMenuItem = new("Prevent Screen Locked", (_, _) => PreventLock());
-        expiredMenuItem = new() { Text = "Expired" };
-        screensaverSubMenu = new("Screen Saver") {
-            Items = { preventlockMenuItem, expiredMenuItem }
+        testMenuItem = new("Test", null, (_, _) => Test());
+        startupMenuItem = new("Auto Startup", null, (_, _) => AutoStartup());
+        preventlockMenuItem = new("Prevent Screen Locked", null, (_, _) => PreventLock());
+        expiredMenuItem = new("Expired");
+        screensaverSubMenu = new("Screen Saver", null, [preventlockMenuItem, expiredMenuItem]);
+        reconnectMenuItem = new("Auto Reconnect", null, (_, _) => AutoReconnect());
+        connectMenuItem = new("Connect", null, (_, _) => Connect());
+        connectionSubMenu = new("Connection", null, [reconnectMenuItem, connectMenuItem]);
+        botMenuItem = new("Bot Config", null, (_, _) => showMainWindow.Invoke(Page.Config));
+        reloadMenuItem = new("Reload", null, (_, _) => Reload());
+        resetMenuItem = new("Reset", null, (_, _) => Reset());
+        configSubMenu = new("Configuration", null, [botMenuItem, reloadMenuItem, resetMenuItem]);
+        aboutMenuItem = new("About", null, (_, _) => showMainWindow.Invoke(Page.About));
+        exitMenuItem = new("Exit", null, (_, _) => Exit());
+        contextMenu = new()
+        {
+            Items = {
+                testMenuItem, startupMenuItem, screensaverSubMenu,
+                connectionSubMenu, configSubMenu, aboutMenuItem, exitMenuItem
+            }
         };
-        reconnectMenuItem = new("Auto Reconnect", (_, _) => AutoReconnect());
-        connectMenuItem = new("Connect", (_, _) => Connect());
-        connectionSubMenu = new("Connection") {
-            Items = { reconnectMenuItem, connectMenuItem }
+        tray = new()
+        {
+            Text = $"{App.Description}\n{jenkins.Status}",
+            Icon = new(icons[BotIcon.Offline]),
+            Visible = false,
+            ContextMenuStrip = contextMenu
         };
-        botMenuItem = new("Bot Config", (_, _) => showMainWindow.Invoke(Page.Config));
-        reloadMenuItem = new("Reload", (_, _) => Reload());
-        resetMenuItem = new("Reset", (_, _) => Reset());
-        configSubMenu = new("Configuration") {
-            Items = { botMenuItem, reloadMenuItem, resetMenuItem }
-        };
-        aboutMenuItem = new("About", (_, _) => showMainWindow.Invoke(Page.About));
-        exitMenuItem = new("Exit", (_, _) => Exit());
-        menuOrder = [
-            testMenuItem, startupMenuItem, screensaverSubMenu, 
-            connectionSubMenu, configSubMenu, aboutMenuItem, exitMenuItem
-        ];
         config.Changed += OnConfigChanged;
         jenkins.ConnectionChanged += OnConnectionChanged;
         screenSaver.PreventLockStatusChanged += OnPreventLockStatusChanged;
-        tray = CreateSystemTray(true);
     }
 
     public async void Initialize()
     {
         await Task.Run(Agent.Mre.WaitOne);
-        HideMenu(testMenuItem);
+        testMenuItem.Available = false;
         startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
         preventlockMenuItem.Enabled = false;
-        HideMenu(screensaverSubMenu);
+        screensaverSubMenu.Available = false;
         preventlockMenuItem.Checked = config.Client.IsPreventLock;
         reconnectMenuItem.Checked = config.Client.IsAutoReconnect;
         connectMenuItem.Enabled = !reconnectMenuItem.Checked;
-        tray.Show();
+        tray.Visible = true;
     }
 
     public void RegisterShowMainWindow(MainWindowViewModel mainWindow) => showMainWindow = mainWindow.Show;
-
-    private TrayIconWithContextMenu CreateSystemTray(bool hidden = false)
-    {
-        TrayIconWithContextMenu trayIcon = new()
-        {
-            Icon = GetIcon(jenkins.Status == ConnectionStatus.Connected ? BotIcon.Normal : BotIcon.Offline),
-            ToolTip = $"{App.Description}\n{jenkins.Status}",
-            ContextMenu = new()
-        };
-        foreach (PopupItem menu in menuOrder)
-        {
-            trayIcon.ContextMenu.Items.Add(menu);
-        }
-        trayIcon.MessageWindow.TaskbarCreated += OnCrash;
-        if (hidden) { trayIcon.Visibility = IconVisibility.Hidden; }
-        trayIcon.Create();
-        return trayIcon;
-    }
 
     private async void Test()
     {
@@ -110,14 +91,7 @@ public class AppTray
         logger.LogInformation("Test on thread {threadId}", Environment.CurrentManagedThreadId);
         try
         {
-            //string entropy = DataProtectionHelper.Base64Encode(config.Client.BotId!)!;
-            //logger.LogInformation("{data}", config.Client.BotId);
-            //logger.LogInformation("{data}", entropy);
-            //string encrypted = DataProtectionHelper.EncryptDataAsText(config.Client.BotId, entropy)!;
-            //logger.LogInformation("{data}", encrypted);
-            //string decrypted = DataProtectionHelper.DecryptDataAsText(encrypted, entropy)!;
-            //logger.LogInformation("{data}", decrypted);
-
+            //
         }
         catch (Exception e)
         {
@@ -127,6 +101,7 @@ public class AppTray
 
     private async void AutoStartup()
     {
+        contextMenu.Enabled = false;
         string msg = $"Are you sure to {(startupMenuItem.Checked ? "disable" : "enable")} auto startup?";
         if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Startup", msg))
         {
@@ -139,10 +114,12 @@ public class AppTray
                 MessageBoxHelper.ShowErrorFireForget("You need to run program as admin\nand make sure bot config is valid!");
             }
         }
+        contextMenu.Enabled = true;
     }
 
     private async void PreventLock()
     {
+        contextMenu.Enabled = false;
         string msg = $"Are you sure to {(config.Client.IsPreventLock ? "disable" : "enable")} prevent lock?";
         if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Prevent Lock", msg))
         {
@@ -151,6 +128,7 @@ public class AppTray
             screenSaver.ReloadPreventLock();
             await config.Save();
         }
+        contextMenu.Enabled = true;
     }
 
     private void OnPreventLockStatusChanged(object? sender, ScreenSaverEventArgs e)
@@ -158,15 +136,15 @@ public class AppTray
         switch (e.PreventLockStatus)
         {
             case ExtensionStatus.Valid:
-                ShowMenu(screensaverSubMenu);
+                screensaverSubMenu.Available = true;
                 preventlockMenuItem.Enabled = true;
                 break;
             case ExtensionStatus.Invalid:
-                HideMenu(screensaverSubMenu);
+                screensaverSubMenu.Available = false;
                 preventlockMenuItem.Enabled = false;
                 break;
             case ExtensionStatus.Expired:
-                ShowMenu(screensaverSubMenu);
+                screensaverSubMenu.Available = true;
                 preventlockMenuItem.Enabled = false;
                 break;
         }
@@ -175,6 +153,7 @@ public class AppTray
 
     private async void Connect()
     {
+        contextMenu.Enabled = false;
         string msg;
         switch (jenkins.Status)
         {
@@ -191,10 +170,12 @@ public class AppTray
                 }
                 break;
         }
+        contextMenu.Enabled = true;
     }
 
     private async void AutoReconnect()
     {
+        contextMenu.Enabled = false;
         string msg = $"Are you sure to {(config.Client.IsAutoReconnect ? "disable" : "enable")} auto reconnect?";
         if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Reconnect", msg))
         {
@@ -212,45 +193,56 @@ public class AppTray
             connectMenuItem.Enabled = !reconnectMenuItem.Checked;
             await config.Save();
         }
+        contextMenu.Enabled = true;
     }
 
     private void OnConnectionChanged(object? sender, JenkinsEventArgs e)
     {
-        switch (e.Status)
+        try
         {
-            case ConnectionStatus.Initialize:
-                HideMenu(configSubMenu);
-                HideMenu(connectionSubMenu);
-                tray.UpdateToolTip($"{App.Description}\nInitialize, please wait");
-                break;
-            case ConnectionStatus.Connected:
-                ShowMenu(configSubMenu);
-                ShowMenu(connectionSubMenu);
-                connectMenuItem.Text = "Disconnect";
-                tray.UpdateToolTip($"{App.Description}\n{e.Status}");
-                break;
-            case ConnectionStatus.Disconnected:
-                ShowMenu(configSubMenu);
-                ShowMenu(connectionSubMenu);
-                connectMenuItem.Text = "Connect";
-                tray.UpdateToolTip($"{App.Description}\n{e.Status}");
-                break;
+            switch (e.Status)
+            {
+                case ConnectionStatus.Initialize:
+                    configSubMenu.Available = false;
+                    connectionSubMenu.Available = false;
+                    tray.Text = $"{App.Description}\nInitialize, please wait";
+                    break;
+                case ConnectionStatus.Connected:
+                    configSubMenu.Available = true;
+                    connectionSubMenu.Available = true;
+                    connectMenuItem.Text = "Disconnect";
+                    tray.Text = $"{App.Description}\n{e.Status}";
+                    break;
+                case ConnectionStatus.Disconnected:
+                    configSubMenu.Available = true;
+                    connectionSubMenu.Available = true;
+                    connectMenuItem.Text = "Connect";
+                    tray.Text = $"{App.Description}\n{e.Status}";
+                    break;
+            }
+            tray.Icon = new(icons[e.Icon]);
         }
-        tray.UpdateIcon(GetIcon(e.Icon));
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "{msg}", ex.Message);
+        }
     }
 
     private async void Reload()
     {
+        contextMenu.Enabled = false;
         string msg = "Are you sure to reload config?\nConnection will be reset";
         if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Reload", msg))
         {
             await config.Reload();
             config.RaiseChanged(this, EventArgs.Empty);
         }
+        contextMenu.Enabled = true;
     }
 
     private async void Reset()
     {
+        contextMenu.Enabled = false;
         string msg = "Are you sure to reset config?\nYour current config will be deleted";
         if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Reset", msg))
         {
@@ -259,55 +251,28 @@ public class AppTray
             await config.Save();
             config.RaiseChanged(this, EventArgs.Empty);
         }
+        contextMenu.Enabled = true;
     }
 
     private void OnConfigChanged(object? sender, EventArgs e)
     {
         // handle task scheduler
-        TaskSchedulerHelper.Create(config.Server.TaskSchedulerName, App.Title, App.BaseDir, startupMenuItem.Checked);
+        TaskSchedulerHelper.Create(config.Server.TaskSchedulerName, App.Title, App.BaseDir, true);
         startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
-    }
-
-    private void ShowMenu(PopupItem menu)
-    {
-        if (!tray.ContextMenu!.Items.Contains(menu))
-        {
-            List<PopupItem> oldMenu = new(tray.ContextMenu.Items);
-            tray.ContextMenu.Items.Clear();
-            foreach (PopupItem item in menuOrder)
-            {
-                if (oldMenu.Contains(item) || menu.Equals(item))
-                {
-                    tray.ContextMenu.Items.Add(item);
-                }
-            }
-        }
-    }
-
-    private void HideMenu(PopupItem menu)
-    {
-        // menu.Visible = false; fail using this to hide menu
-        tray.ContextMenu!.Items.Remove(menu);
     }
 
     private async void Exit()
     {
+        contextMenu.Enabled = false;
         if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Exit", "Are you sure to exit application?"))
         {
             jenkins.Disconnect();
+            tray.Visible = false;
             tray.Dispose();
+            Application.Exit();
             await App.Exit();
             Environment.Exit(0);
         }
+        contextMenu.Enabled = true;
     }
-
-    private async void OnCrash(object? sender, EventArgs e)
-    {
-        tray.Dispose();
-        await Task.Delay(10000);
-        tray = CreateSystemTray();
-        logger.LogWarning("Tray icon reset");
-    }
-
-    private nint GetIcon(BotIcon icon) => new System.Drawing.Icon(icons[icon]).Handle;
 }
