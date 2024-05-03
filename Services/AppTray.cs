@@ -73,7 +73,7 @@ public class AppTray
     public async void Initialize()
     {
         await Task.Run(Agent.Mre.WaitOne);
-        //testMenuItem.Available = false;
+        testMenuItem.Available = false;
         startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
         preventlockMenuItem.Enabled = false;
         screensaverSubMenu.Available = false;
@@ -91,13 +91,7 @@ public class AppTray
         logger.LogInformation("Test on thread {threadId}", Environment.CurrentManagedThreadId);
         try
         {
-            logger.LogInformation("{data}", Helper.CreateUrl("test.local"));
-            logger.LogInformation("{data}", Helper.CreateUrl("test.local", null, false));
-            logger.LogInformation("{data}", Helper.CreateUrl("http://test.local/", null, false));
-            logger.LogInformation("{data}", Helper.CreateUrl("https://test.local/", "sub/path/", false));
-            logger.LogInformation("{data}", Helper.CreateUrl(config.Client.OrchestratorUrl));
-            logger.LogInformation("{data}", Helper.CreateUrl(config.Client.OrchestratorUrl, config.Server.JavaUrl));
-            logger.LogInformation("{data}", Helper.CreateUrl(config.Client.OrchestratorUrl, config.Server.ExtensionAuthUrl));
+            //
         }
         catch (Exception e)
         {

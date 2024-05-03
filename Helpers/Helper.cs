@@ -20,6 +20,12 @@ public static partial class Helper
 
     public static string GetUserDir() => Environment.GetEnvironmentVariable("USERPROFILE")!;
 
+    public static TType? GetProperty<TType, TObject>(TObject obj, string name)
+    {
+        PropertyInfo? info = obj?.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+        return (TType?)info?.GetValue(obj);
+    }
+
     public static string? CreateUrl(string? url1, string? url2 = null, bool trim = true)
     {
         try
@@ -46,7 +52,11 @@ public static partial class Helper
         }
     }
 
-    [GeneratedRegex(@"\s")]
-    private static partial Regex WhitespaceRegex();
     public static string RemoveWhitespaces(string text) => WhitespaceRegex().Replace(text, string.Empty);
+
+    [GeneratedRegex(@"\s")]
+    public static partial Regex WhitespaceRegex();
+
+    [GeneratedRegex(@"\<(.*?)\>")]
+    public static partial Regex AngleBracketsRegex();
 }

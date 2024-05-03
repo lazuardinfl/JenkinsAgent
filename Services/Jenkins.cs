@@ -7,6 +7,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -78,9 +79,7 @@ public class Jenkins
             mre.Reset();
             process = new();
             process.StartInfo.FileName = $"{App.ProfileDir}/{config.Server.JavaPath}/java.exe";
-            process.StartInfo.Arguments = $"-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT -jar {config.Server.AgentPath} " +
-                                            $"-jnlpUrl {config.Client.OrchestratorUrl}/computer/{config.Client.BotId}/jenkins-agent.jnlp " +
-                                            $"-secret {DataProtectionHelper.DecryptDataAsText(config.Client.BotToken, DataProtectionHelper.Base64Encode(config.Client.BotId))}";
+            process.StartInfo.Arguments = $"-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT -jar {config.Server.AgentPath} {CreateAgentArguments()}";
             process.StartInfo.WorkingDirectory = App.ProfileDir;
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.CreateNoWindow = true;
@@ -223,6 +222,20 @@ public class Jenkins
             logger.LogError(e, "{msg}", e.Message);
             return false;
         }
+    }
+
+    private string CreateAgentArguments()
+    {
+        string arguments = config.Server.AgentArguments ?? "-secret";
+        MatchCollection matches = Helper.AngleBracketsRegex().Matches(arguments);
+        foreach (Match match in matches.Cast<Match>())
+        {
+            arguments = arguments.Replace(match.Groups[0].Value, match.Groups[1].Value == "BotToken" ?
+                DataProtectionHelper.DecryptDataAsText(config.Client.BotToken, DataProtectionHelper.Base64Encode(config.Client.BotId)) :
+                Helper.GetProperty<string, ClientConfig>(config.Client, match.Groups[1].Value)
+            );
+        }
+        return arguments;
     }
 
     private async void OnConfigChanged(object? sender, EventArgs e)
