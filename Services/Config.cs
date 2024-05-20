@@ -3,6 +3,7 @@ using Bot.Models;
 using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -27,6 +28,9 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
             Client = JsonSerializer.Deserialize<ClientConfig>(clientConfig)!;
             using (HttpClient httpClient = httpClientFactory.CreateClient())
             {
+                httpClient.DefaultRequestHeaders.Add("Bot-Hash", App.Hash);
+                httpClient.DefaultRequestHeaders.Add("Bot-Version", $"{App.Version?.Major}.{App.Version?.Minor}.{App.Version?.Build}");
+                httpClient.DefaultRequestHeaders.Add("Bot-Build", $"{App.Version?.Major}{App.Version?.Minor}{App.Version?.Build}");
                 string serverConfig = await httpClient.GetStringAsync(Helper.CreateUrl(Client.OrchestratorUrl, Client.SettingsUrl));
                 Server = JsonSerializer.Deserialize<ServerConfig>(serverConfig)!;
             }
@@ -34,6 +38,10 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
         }
         catch (Exception e)
         {
+            if ((e is HttpRequestException httpEx) && (httpEx.StatusCode == HttpStatusCode.Unauthorized))
+            {
+                // logic if bot unauthorized to get config
+            }
             if (showMessageBox)
             {
                 MessageBoxHelper.ShowErrorFireForget("Connection failed. Make sure connected\nto server and bot config is valid!");

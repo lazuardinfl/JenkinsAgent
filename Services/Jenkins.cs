@@ -258,9 +258,14 @@ public class Jenkins
             Status = ConnectionStatus.Connected;
             mre.Set();
         }
-        // disconnected at first time
-        else if (e.Data.Contains("Failed to obtain") || e.Data.Contains("buffer too short") || e.Data.Contains("For input string") ||
-                 e.Data.Contains("SEVERE: Handshake error") || e.Data.Contains("Invalid byte") || e.Data.Contains("takes an operand"))
+        // disconnected at first time then retry
+        else if (e.Data.Contains("Failed to obtain"))
+        {
+            mre.Set();
+        }
+        // disconnected at first time then exit
+        else if (e.Data.Contains("buffer too short") || e.Data.Contains("For input string") || e.Data.Contains("Invalid byte") ||
+                 e.Data.Contains("SEVERE: Handshake error") || e.Data.Contains("takes an operand"))
         {
             mre.Set();
         }
@@ -273,6 +278,11 @@ public class Jenkins
                 Disconnect(false);
                 MessageBoxHelper.ShowErrorFireForget("Disconnected from server");
             }
+        }
+        // disconnected temporary
+        else if (e.Data.Contains("Write side closed"))
+        {
+            //
         }
     }
 

@@ -22,6 +22,7 @@ public partial class App : Application
     public static readonly string Title = Helper.GetAppTitle() ?? "Bot";
     public static readonly string Description = Helper.GetAppDescription() ?? "Bot Agent";
     public static readonly Version? Version = Helper.GetAppVersion();
+    public static readonly string Hash = Helper.GetAppHash();
     public static readonly string BaseDir = Helper.GetBaseDir().Replace(@"\", "/");
     public static readonly string ProfileDir = $"{Helper.GetUserDir().Replace(@"\", "/")}/{Title}";
     public static readonly ManualResetEvent Mre = new(false);
