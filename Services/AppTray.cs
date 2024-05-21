@@ -92,7 +92,6 @@ public class AppTray
         try
         {
             //logger.LogInformation("{data}", App.Hash);
-            MessageBoxHelper.ShowErrorFireForget(App.IsAdministrator.ToString());
         }
         catch (Exception e)
         {
@@ -183,7 +182,7 @@ public class AppTray
             switch (jenkins.Status, config.Client.IsAutoReconnect)
             {
                 case (ConnectionStatus.Disconnected, true):
-                    jenkins.Disconnect(false);
+                    jenkins.Disconnect();
                     break;
                 case (ConnectionStatus.Disconnected, false):
                     await jenkins.ReloadConnection();

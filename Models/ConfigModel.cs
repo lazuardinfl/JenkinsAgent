@@ -3,8 +3,9 @@ using System.Text.Json.Serialization;
 namespace Bot.Models;
 
 public enum BotIcon { Normal, Offline }
-public enum ConnectionStatus { Initialize, Connected, Disconnected }
 public enum ExtensionStatus { Valid, Invalid, Expired }
+public enum ConnectionStatus { Initialize, Connected, Disconnected }
+public enum ConnectionOutputEvent { Connected, DisconnectedThenRetry, DisconnectedThenExit, DisconnectedTemporary, Unknown }
 
 public sealed class ClientConfig
 {

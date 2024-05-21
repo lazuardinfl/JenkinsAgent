@@ -2,6 +2,7 @@ using Bot.Helpers;
 using Bot.Models;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -19,6 +20,7 @@ public class Jenkins
     private readonly ILogger logger;
     private readonly IHttpClientFactory httpClientFactory;
     private readonly Config config;
+    private readonly Dictionary<ConnectionOutputEvent, string[]> outputEvents;
     private ConnectionStatus status = ConnectionStatus.Disconnected;
     private Process process = null!;
 
@@ -28,6 +30,16 @@ public class Jenkins
         this.httpClientFactory = httpClientFactory;
         this.config = config;
         config.Changed += OnConfigChanged;
+        outputEvents = new()
+        {
+            { ConnectionOutputEvent.Connected, ["INFO: Connected"] },
+            { ConnectionOutputEvent.DisconnectedTemporary, ["Write side closed"] },
+            { ConnectionOutputEvent.DisconnectedThenRetry, ["Failed to obtain", "is not ready"] },
+            { ConnectionOutputEvent.DisconnectedThenExit, [
+                "buffer too short", "For input string", "Invalid byte", "takes an operand",
+                "No subject alternative DNS", "SEVERE: Handshake error"
+            ]}
+        };
     }
 
     public event EventHandler<JenkinsEventArgs>? ConnectionChanged;
@@ -35,15 +47,18 @@ public class Jenkins
     public ConnectionStatus Status
     {
         get { return status; }
-        set
+        private set
         {
-            status = value;
-            JenkinsEventArgs args = new()
+            if (status != value)
             {
-                Status = value,
-                Icon = value == ConnectionStatus.Connected ? BotIcon.Normal : BotIcon.Offline,
-            };
-            ConnectionChanged?.Invoke(this, args);
+                status = value;
+                JenkinsEventArgs args = new()
+                {
+                    Status = value,
+                    Icon = value == ConnectionStatus.Connected ? BotIcon.Normal : BotIcon.Offline,
+                };
+                ConnectionChanged?.Invoke(this, args);
+            }
         }
     }
 
@@ -92,17 +107,22 @@ public class Jenkins
             process.Start();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
-            await Task.Run(() => mre.WaitOne(atStartup ? config.Server.StartupConnectTimeout : config.Server.ConnectTimeout));
+            if (!await Task.Run(() => mre.WaitOne(atStartup ? config.Server.StartupConnectTimeout : config.Server.ConnectTimeout)))
+            {
+                Disconnect();
+                MessageBoxHelper.ShowErrorFireForget("Connection failed. Make sure connected\nto server and bot config is valid!");
+            }
         }
         catch (Exception e)
         {
+            Status = ConnectionStatus.Disconnected;
             logger.LogError(e, "{msg}", e.Message);
+            MessageBoxHelper.ShowErrorFireForget("Unexpected error. Contact admin for help!");
         }
-        if (Status != ConnectionStatus.Connected) { Disconnect(); }
         return Status == ConnectionStatus.Connected;
     }
 
-    public void Disconnect(bool setStatus = true)
+    public void Disconnect()
     {
         try
         {
@@ -113,10 +133,7 @@ public class Jenkins
         {
             logger.LogError(e, "{msg}", e.Message);
         }
-        finally
-        {
-            if (setStatus) { Status = ConnectionStatus.Disconnected; }
-        }
+        Status = ConnectionStatus.Disconnected;
     }
 
     public async Task<bool> ReloadConnection(bool atStartup = false)
@@ -238,56 +255,59 @@ public class Jenkins
         return arguments;
     }
 
-    private async void OnConfigChanged(object? sender, EventArgs e)
+    private ConnectionOutputEvent GetOutputEvent(string? outputData)
     {
-        if (Status == ConnectionStatus.Connected || config.Client.IsAutoReconnect)
+        if (outputData != null)
         {
-            Disconnect(false);
-            await ReloadConnection();
+            foreach (ConnectionOutputEvent outputEvent in outputEvents.Keys)
+            {
+                if (outputEvents[outputEvent].Any(outputData.Contains)) { return outputEvent; }
+            }
         }
+        return ConnectionOutputEvent.Unknown;
     }
 
     private void OnOutputReceived(object? sender, DataReceivedEventArgs e)
     {
         logger.LogInformation("{data}", e.Data);
-        // null to prevent exception
-        if (e.Data is null) {}
-        // connected first time or after disconnected
-        else if (e.Data.Contains("INFO: Connected"))
+        switch (GetOutputEvent(e.Data))
         {
-            Status = ConnectionStatus.Connected;
-            mre.Set();
+            case ConnectionOutputEvent.Connected:
+                Status = ConnectionStatus.Connected;
+                mre.Set();
+                break;
+            case ConnectionOutputEvent.DisconnectedTemporary:
+                // raise event for extension
+                break;
+            case ConnectionOutputEvent.DisconnectedThenRetry:
+                Status = ConnectionStatus.Disconnected;
+                if (!config.Client.IsAutoReconnect)
+                {
+                    Disconnect();
+                    MessageBoxHelper.ShowErrorFireForget("Disconnected from server");
+                }
+                mre.Set();
+                break;
+            case ConnectionOutputEvent.DisconnectedThenExit:
+                Status = ConnectionStatus.Disconnected;
+                MessageBoxHelper.ShowErrorFireForget("Connection failed. Make sure connected\nto server and bot config is valid!");
+                mre.Set();
+                break;
         }
-        // disconnected at first time then retry
-        else if (e.Data.Contains("Failed to obtain"))
+    }
+
+    private async void OnConfigChanged(object? sender, EventArgs e)
+    {
+        if (Status == ConnectionStatus.Connected || config.Client.IsAutoReconnect)
         {
-            mre.Set();
-        }
-        // disconnected at first time then exit
-        else if (e.Data.Contains("buffer too short") || e.Data.Contains("For input string") || e.Data.Contains("Invalid byte") ||
-                 e.Data.Contains("SEVERE: Handshake error") || e.Data.Contains("takes an operand"))
-        {
-            mre.Set();
-        }
-        // disconnected in the middle connection
-        else if (e.Data.Contains("is not ready"))
-        {
-            if (Status != ConnectionStatus.Disconnected) { Status = ConnectionStatus.Disconnected; }
-            if (!config.Client.IsAutoReconnect)
-            {
-                Disconnect(false);
-                MessageBoxHelper.ShowErrorFireForget("Disconnected from server");
-            }
-        }
-        // disconnected temporary
-        else if (e.Data.Contains("Write side closed"))
-        {
-            //
+            Disconnect();
+            await ReloadConnection();
         }
     }
 
     private void OnExited(object? sender, EventArgs e)
     {
+        Status = ConnectionStatus.Disconnected;
         process.Dispose();
         logger.LogInformation("Jenkins process exited");
     }
