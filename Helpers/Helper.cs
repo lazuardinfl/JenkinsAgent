@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Reflection;
 using System.Security.Cryptography;
+using System.Security.Principal;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -26,6 +27,15 @@ public static partial class Helper
                 byte[] hash = sha256.ComputeHash(file);
                 return BitConverter.ToString(hash).Replace("-", string.Empty);
             }
+        }
+    }
+
+    public static bool IsAppElevated()
+    {
+        using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+        {
+            WindowsPrincipal principal = new(identity);
+            return principal.IsInRole(WindowsBuiltInRole.Administrator);
         }
     }
 

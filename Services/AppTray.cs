@@ -92,7 +92,7 @@ public class AppTray
         try
         {
             //logger.LogInformation("{data}", App.Hash);
-            //await config.Test();
+            MessageBoxHelper.ShowErrorFireForget(App.IsAdministrator.ToString());
         }
         catch (Exception e)
         {
