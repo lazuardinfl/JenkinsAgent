@@ -60,7 +60,7 @@ public class AppTray
         };
         tray = new()
         {
-            Text = $"{App.Description}\n{jenkins.Status}",
+            Text = $"{CreateDescription()} Disconnected",
             Icon = new(icons[BotIcon.Offline]),
             Visible = false,
             ContextMenuStrip = contextMenu
@@ -74,6 +74,7 @@ public class AppTray
     {
         await Task.Run(Agent.Mre.WaitOne);
         //testMenuItem.Available = false;
+        tray.Text = $"{CreateDescription()} {jenkins.Status}";
         startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
         preventlockMenuItem.Enabled = false;
         screensaverSubMenu.Available = false;
@@ -205,19 +206,19 @@ public class AppTray
                 case ConnectionStatus.Initialize:
                     configSubMenu.Available = false;
                     connectionSubMenu.Available = false;
-                    tray.Text = $"{App.Description}\nInitialize, please wait";
+                    tray.Text = $"{CreateDescription()} Initialize, please wait";
                     break;
                 case ConnectionStatus.Connected:
                     configSubMenu.Available = true;
                     connectionSubMenu.Available = true;
                     connectMenuItem.Text = "Disconnect";
-                    tray.Text = $"{App.Description}\n{e.Status}";
+                    tray.Text = $"{CreateDescription()} {e.Status}";
                     break;
                 case ConnectionStatus.Disconnected:
                     configSubMenu.Available = true;
                     connectionSubMenu.Available = true;
                     connectMenuItem.Text = "Connect";
-                    tray.Text = $"{App.Description}\n{e.Status}";
+                    tray.Text = $"{CreateDescription()} {e.Status}";
                     break;
             }
             tray.Icon = new(icons[e.Icon]);
@@ -256,6 +257,7 @@ public class AppTray
 
     private void OnConfigChanged(object? sender, EventArgs e)
     {
+        tray.Text = $"{CreateDescription()} {jenkins.Status}";
         // handle task scheduler
         TaskSchedulerHelper.Create(config.Server.TaskSchedulerName, App.Title, App.BaseDir, true);
         startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
@@ -275,4 +277,8 @@ public class AppTray
         }
         contextMenu.Enabled = true;
     }
+
+    private string CreateDescription()
+        => $"{App.Description} v{App.Version?.Major}.{App.Version?.Minor}.{App.Version?.Build} " +
+           $"({(App.IsAdministrator ? "Admin" : "Standard")})\nBot Id: {config.Client.BotId}\nStatus:";
 }
