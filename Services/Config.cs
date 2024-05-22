@@ -12,15 +12,13 @@ namespace Bot.Services;
 
 public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory)
 {
-    public event EventHandler? Changed;
+    public event EventHandler? Reloaded;
 
     public bool IsValid { get; private set; } = false;
     public ClientConfig Client { get; set; } = new();
     public ServerConfig Server { get; set; } = new();
 
-    public void RaiseChanged(object? sender, EventArgs e) => Changed?.Invoke(sender, e);
-
-    public async Task<bool> Reload()
+    public async Task<bool> Reload(bool raiseEvent = false)
     {
         Directory.CreateDirectory(App.ProfileDir);
         try
@@ -50,6 +48,7 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
             logger.LogError(e, "{msg}", e.Message);
             IsValid = false;
         }
+        if (raiseEvent) { Reloaded?.Invoke(this, EventArgs.Empty); }
         return IsValid;
     }
 

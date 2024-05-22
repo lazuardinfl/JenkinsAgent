@@ -65,7 +65,7 @@ public class AppTray
             Visible = false,
             ContextMenuStrip = contextMenu
         };
-        config.Changed += OnConfigChanged;
+        config.Reloaded += OnConfigReloaded;
         jenkins.ConnectionChanged += OnConnectionChanged;
         screenSaver.PreventLockStatusChanged += OnPreventLockStatusChanged;
     }
@@ -166,7 +166,7 @@ public class AppTray
                 break;
             case ConnectionStatus.Disconnected:
                 msg = "Are you sure to connect to the server?";
-                if ((DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Connect", msg)) && (await jenkins.Initialize())) {
+                if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Connect", msg)) {
                     await jenkins.Connect();
                 }
                 break;
@@ -188,7 +188,7 @@ public class AppTray
                     break;
                 case (ConnectionStatus.Disconnected, false):
                     config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
-                    if (await jenkins.Initialize()) { await jenkins.Connect(); }
+                    await jenkins.Connect();
                     break;
                 default:
                     config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
@@ -232,8 +232,7 @@ public class AppTray
         string msg = "Are you sure to reload config?\nConnection will be reset";
         if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Reload", msg))
         {
-            await config.Reload();
-            config.RaiseChanged(this, EventArgs.Empty);
+            await config.Reload(true);
         }
         contextMenu.Enabled = true;
     }
@@ -247,12 +246,12 @@ public class AppTray
             config.Client = new();
             config.Server = new();
             await config.Save();
-            config.RaiseChanged(this, EventArgs.Empty);
+            await config.Reload(true);
         }
         contextMenu.Enabled = true;
     }
 
-    private void OnConfigChanged(object? sender, EventArgs e)
+    private void OnConfigReloaded(object? sender, EventArgs e)
     {
         tray.Text = CreateDescription();
         // handle task scheduler

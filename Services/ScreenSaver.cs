@@ -27,7 +27,7 @@ public class ScreenSaver
         this.logger = logger;
         this.httpClientFactory = httpClientFactory;
         this.config = config;
-        config.Changed += OnConfigChanged;
+        config.Reloaded += OnConfigReloaded;
         timer.Elapsed += OnTimedEvent;
     }
 
@@ -130,7 +130,7 @@ public class ScreenSaver
         }
     }
 
-    private void OnConfigChanged(object? sender, EventArgs e) => Initialize();
+    private void OnConfigReloaded(object? sender, EventArgs e) => Initialize();
 
     private void OnTimedEvent(object? sender, ElapsedEventArgs e)
     {

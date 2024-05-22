@@ -21,8 +21,11 @@ public class Agent(Config config, Jenkins jenkins, ScreenSaver screenSaver)
         Mre.Set();
         await Task.Run(App.Mre.WaitOne);
         bool atStartup = (App.Lifetime().Args ?? []).Contains("startup");
-        if (config.IsValid && await jenkins.Initialize()) { await jenkins.Connect(atStartup); }
-        screenSaver.Initialize();
+        if (config.IsValid)
+        {
+            await jenkins.Connect(atStartup);
+            screenSaver.Initialize();
+        }
     }
 
     private static void SetEnvironmentVariable()

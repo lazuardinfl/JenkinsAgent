@@ -29,7 +29,7 @@ public class Jenkins
         this.logger = logger;
         this.httpClientFactory = httpClientFactory;
         this.config = config;
-        config.Changed += OnConfigChanged;
+        config.Reloaded += OnConfigReloaded;
         outputStreams = new()
         {
             { ConnectionStatus.Connected, ["INFO: Connected"] },
@@ -62,7 +62,62 @@ public class Jenkins
         }
     }
 
-    public async Task<bool> Initialize()
+    public async Task Connect(bool atStartup = false)
+    {
+        if (await Initialize())
+        {
+            try
+            {
+                mre.Reset();
+                process = new();
+                process.StartInfo.FileName = $"{App.ProfileDir}/{config.Server.JavaPath}/java.exe";
+                process.StartInfo.Arguments = $"-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT -jar {config.Server.AgentPath} {CreateAgentArguments()}";
+                process.StartInfo.WorkingDirectory = App.ProfileDir;
+                process.StartInfo.UseShellExecute = false;
+                process.StartInfo.CreateNoWindow = true;
+                process.StartInfo.RedirectStandardOutput = true;
+                process.StartInfo.RedirectStandardError = true;
+                process.EnableRaisingEvents = true;
+                process.OutputDataReceived += new DataReceivedEventHandler(OnOutputReceived);
+                process.ErrorDataReceived += new DataReceivedEventHandler(OnOutputReceived);
+                process.Exited += new EventHandler(OnExited);
+                process.Start();
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+                logger.LogInformation("Jenkins process {pid} started", process.Id);
+                if (!await Task.Run(() => mre.WaitOne(atStartup ? config.Server.StartupConnectTimeout : config.Server.ConnectTimeout)))
+                {
+                    Disconnect();
+                    MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed));
+                }
+            }
+            catch (Exception e)
+            {
+                Status = ConnectionStatus.Disconnected;
+                logger.LogError(e, "{msg}", e.Message);
+                MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.UnexpectedError));
+            }
+        }
+    }
+
+    public void Disconnect()
+    {
+        try
+        {
+            logger.LogInformation("Jenkins disconnected");
+            process.CancelOutputRead();
+            process.CancelErrorRead();
+            process.Kill(true);
+            process.Close();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "{msg}", e.Message);
+        }
+        Status = ConnectionStatus.Disconnected;
+    }
+
+    private async Task<bool> Initialize()
     {
         bool isReady = false;
         // check config
@@ -91,54 +146,6 @@ public class Jenkins
         Status = isReady ? ConnectionStatus.Retry : ConnectionStatus.Disconnected;
         if (!isReady) { MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed)); }
         return isReady;
-    }
-
-    public async Task Connect(bool atStartup = false)
-    {
-        try
-        {
-            mre.Reset();
-            process = new();
-            process.StartInfo.FileName = $"{App.ProfileDir}/{config.Server.JavaPath}/java.exe";
-            process.StartInfo.Arguments = $"-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT -jar {config.Server.AgentPath} {CreateAgentArguments()}";
-            process.StartInfo.WorkingDirectory = App.ProfileDir;
-            process.StartInfo.UseShellExecute = false;
-            process.StartInfo.CreateNoWindow = true;
-            process.StartInfo.RedirectStandardOutput = true;
-            process.StartInfo.RedirectStandardError = true;
-            process.EnableRaisingEvents = true;
-            process.OutputDataReceived += new DataReceivedEventHandler(OnOutputReceived);
-            process.ErrorDataReceived += new DataReceivedEventHandler(OnOutputReceived);
-            process.Exited += new EventHandler(OnExited);
-            process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-            if (!await Task.Run(() => mre.WaitOne(atStartup ? config.Server.StartupConnectTimeout : config.Server.ConnectTimeout)))
-            {
-                Disconnect();
-                MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed));
-            }
-        }
-        catch (Exception e)
-        {
-            Status = ConnectionStatus.Disconnected;
-            logger.LogError(e, "{msg}", e.Message);
-            MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.UnexpectedError));
-        }
-    }
-
-    public void Disconnect()
-    {
-        try
-        {
-            process.Kill(true);
-            logger.LogInformation("Jenkins disconnected");
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "{msg}", e.Message);
-        }
-        Status = ConnectionStatus.Disconnected;
     }
 
     private bool IsJavaVersionCompatible()
@@ -298,20 +305,27 @@ public class Jenkins
         }
     }
 
-    private async void OnConfigChanged(object? sender, EventArgs e)
+    private async void OnConfigReloaded(object? sender, EventArgs e)
     {
         if (Status == ConnectionStatus.Connected || Status == ConnectionStatus.Retry || config.Client.IsAutoReconnect)
         {
             Disconnect();
-            if (config.IsValid && await Initialize()) { await Connect(); }
+            if (config.IsValid) { await Connect(); }
         }
     }
 
     private void OnExited(object? sender, EventArgs e)
     {
         Status = ConnectionStatus.Disconnected;
-        process.Dispose();
-        logger.LogInformation("Jenkins process exited");
+        try
+        {
+            logger.LogInformation("Jenkins process {pid} exited", process.Id);
+            process.Dispose();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "{msg}", ex.Message);
+        }
     }
 }
 
