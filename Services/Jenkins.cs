@@ -20,7 +20,7 @@ public class Jenkins
     private readonly ILogger logger;
     private readonly IHttpClientFactory httpClientFactory;
     private readonly Config config;
-    private readonly Dictionary<ConnectionOutputEvent, string[]> outputEvents;
+    private readonly Dictionary<ConnectionStatus, string[]> outputStreams;
     private ConnectionStatus status = ConnectionStatus.Disconnected;
     private Process process = null!;
 
@@ -30,12 +30,12 @@ public class Jenkins
         this.httpClientFactory = httpClientFactory;
         this.config = config;
         config.Changed += OnConfigChanged;
-        outputEvents = new()
+        outputStreams = new()
         {
-            { ConnectionOutputEvent.Connected, ["INFO: Connected"] },
-            { ConnectionOutputEvent.DisconnectedTemporary, ["Write side closed"] },
-            { ConnectionOutputEvent.DisconnectedThenRetry, ["Failed to obtain", "is not ready"] },
-            { ConnectionOutputEvent.DisconnectedThenExit, [
+            { ConnectionStatus.Connected, ["INFO: Connected"] },
+            { ConnectionStatus.Interrupted, ["Write side closed"] },
+            { ConnectionStatus.Retry, ["Failed to obtain", "is not ready"] },
+            { ConnectionStatus.Disconnected, [
                 "buffer too short", "For input string", "Invalid byte", "takes an operand",
                 "No subject alternative DNS", "SEVERE: Handshake error"
             ]}
@@ -49,7 +49,7 @@ public class Jenkins
         get { return status; }
         private set
         {
-            if (status != value)
+            if (status != value && status != ConnectionStatus.Unknown)
             {
                 status = value;
                 JenkinsEventArgs args = new()
@@ -64,30 +64,36 @@ public class Jenkins
 
     public async Task<bool> Initialize()
     {
-        // check java
-        bool isJavaReady = IsJavaVersionCompatible();
-        if (!isJavaReady)
+        bool isReady = false;
+        // check config
+        if (config.IsValid)
         {
-            logger.LogInformation("Downloading Java");
-            Status = ConnectionStatus.Initialize;
-            isJavaReady = await DownloadJava();
+            // check java
+            bool isJavaReady = IsJavaVersionCompatible();
+            if (!isJavaReady)
+            {
+                logger.LogInformation("Downloading Java");
+                Status = ConnectionStatus.Initialize;
+                isJavaReady = await DownloadJava();
+            }
+            // check agent
+            bool isAgentReady = IsAgentVersionCompatible();
+            if (!isAgentReady)
+            {
+                logger.LogInformation("Downloading Agent");
+                Status = ConnectionStatus.Initialize;
+                isAgentReady = await DownloadAgent();
+            }
+            // assign ready status
+            isReady = isJavaReady && isAgentReady;
         }
-        // check agent
-        bool isAgentReady = IsAgentVersionCompatible();
-        if (!isAgentReady)
-        {
-            logger.LogInformation("Downloading Agent");
-            Status = ConnectionStatus.Initialize;
-            isAgentReady = await DownloadAgent();
-        }
-        // assign ready status
         await Task.Run(App.Mre.WaitOne);
-        bool isReady = isJavaReady && isAgentReady;
-        Status = isReady ? ConnectionStatus.Initialize : ConnectionStatus.Disconnected;
+        Status = isReady ? ConnectionStatus.Retry : ConnectionStatus.Disconnected;
+        if (!isReady) { MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed)); }
         return isReady;
     }
 
-    public async Task<bool> Connect(bool atStartup = false)
+    public async Task Connect(bool atStartup = false)
     {
         try
         {
@@ -110,16 +116,15 @@ public class Jenkins
             if (!await Task.Run(() => mre.WaitOne(atStartup ? config.Server.StartupConnectTimeout : config.Server.ConnectTimeout)))
             {
                 Disconnect();
-                MessageBoxHelper.ShowErrorFireForget("Connection failed. Make sure connected\nto server and bot config is valid!");
+                MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed));
             }
         }
         catch (Exception e)
         {
             Status = ConnectionStatus.Disconnected;
             logger.LogError(e, "{msg}", e.Message);
-            MessageBoxHelper.ShowErrorFireForget("Unexpected error. Contact admin for help!");
+            MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.UnexpectedError));
         }
-        return Status == ConnectionStatus.Connected;
     }
 
     public void Disconnect()
@@ -134,16 +139,6 @@ public class Jenkins
             logger.LogError(e, "{msg}", e.Message);
         }
         Status = ConnectionStatus.Disconnected;
-    }
-
-    public async Task<bool> ReloadConnection(bool atStartup = false)
-    {
-        if (!(await Initialize() && await Connect(atStartup)))
-        {
-            MessageBoxHelper.ShowErrorFireForget("Connection failed. Make sure connected\nto server and bot config is valid!");
-            return false;
-        }
-        return true;
     }
 
     private bool IsJavaVersionCompatible()
@@ -255,53 +250,60 @@ public class Jenkins
         return arguments;
     }
 
-    private ConnectionOutputEvent GetOutputEvent(string? outputData)
+    private ConnectionStatus GetOutputStreamStatus(string? outputData)
     {
         if (outputData != null)
         {
-            foreach (ConnectionOutputEvent outputEvent in outputEvents.Keys)
+            foreach (ConnectionStatus output in outputStreams.Keys)
             {
-                if (outputEvents[outputEvent].Any(outputData.Contains)) { return outputEvent; }
+                if (outputStreams[output].Any(outputData.Contains)) { return output; }
             }
         }
-        return ConnectionOutputEvent.Unknown;
+        return ConnectionStatus.Unknown;
     }
 
     private void OnOutputReceived(object? sender, DataReceivedEventArgs e)
     {
         logger.LogInformation("{data}", e.Data);
-        switch (GetOutputEvent(e.Data))
+        switch (GetOutputStreamStatus(e.Data))
         {
-            case ConnectionOutputEvent.Connected:
+            case ConnectionStatus.Connected:
+                mre.Set();
                 Status = ConnectionStatus.Connected;
-                mre.Set();
                 break;
-            case ConnectionOutputEvent.DisconnectedTemporary:
+            case ConnectionStatus.Interrupted:
                 // raise event for extension
+                Status = ConnectionStatus.Interrupted;
                 break;
-            case ConnectionOutputEvent.DisconnectedThenRetry:
-                Status = ConnectionStatus.Disconnected;
-                if (!config.Client.IsAutoReconnect)
+            case ConnectionStatus.Retry:
+                mre.Set();
+                if (config.Client.IsAutoReconnect)
                 {
-                    Disconnect();
-                    MessageBoxHelper.ShowErrorFireForget("Disconnected from server");
+                    Status = ConnectionStatus.Retry;
                 }
-                mre.Set();
+                else
+                {
+                    string msg = Status == ConnectionStatus.Retry ?
+                        MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed) :
+                        "Disconnected from server";
+                    Disconnect();
+                    MessageBoxHelper.ShowErrorFireForget(msg);
+                }
                 break;
-            case ConnectionOutputEvent.DisconnectedThenExit:
-                Status = ConnectionStatus.Disconnected;
-                MessageBoxHelper.ShowErrorFireForget("Connection failed. Make sure connected\nto server and bot config is valid!");
+            case ConnectionStatus.Disconnected:
                 mre.Set();
+                Status = ConnectionStatus.Disconnected;
+                MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed));
                 break;
         }
     }
 
     private async void OnConfigChanged(object? sender, EventArgs e)
     {
-        if (Status == ConnectionStatus.Connected || config.Client.IsAutoReconnect)
+        if (Status == ConnectionStatus.Connected || Status == ConnectionStatus.Retry || config.Client.IsAutoReconnect)
         {
             Disconnect();
-            await ReloadConnection();
+            if (config.IsValid && await Initialize()) { await Connect(); }
         }
     }
 

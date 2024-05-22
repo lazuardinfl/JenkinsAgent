@@ -14,12 +14,13 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
 {
     public event EventHandler? Changed;
 
+    public bool IsValid { get; private set; } = false;
     public ClientConfig Client { get; set; } = new();
     public ServerConfig Server { get; set; } = new();
 
     public void RaiseChanged(object? sender, EventArgs e) => Changed?.Invoke(sender, e);
 
-    public async Task<bool> Reload(bool showMessageBox = false)
+    public async Task<bool> Reload()
     {
         Directory.CreateDirectory(App.ProfileDir);
         try
@@ -34,21 +35,22 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
                 string serverConfig = await httpClient.GetStringAsync(Helper.CreateUrl(Client.OrchestratorUrl, Client.SettingsUrl));
                 Server = JsonSerializer.Deserialize<ServerConfig>(serverConfig)!;
             }
-            return true;
+            IsValid = true;
         }
         catch (Exception e)
         {
             if ((e is HttpRequestException httpEx) && (httpEx.StatusCode == HttpStatusCode.Unauthorized))
             {
-                // logic if bot unauthorized to get config
+                MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.VersionIncompatible));
             }
-            if (showMessageBox)
+            else
             {
-                MessageBoxHelper.ShowErrorFireForget("Connection failed. Make sure connected\nto server and bot config is valid!");
+                MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed));
             }
             logger.LogError(e, "{msg}", e.Message);
-            return false;
+            IsValid = false;
         }
+        return IsValid;
     }
 
     public async Task<bool> Save()

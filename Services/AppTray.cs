@@ -60,7 +60,7 @@ public class AppTray
         };
         tray = new()
         {
-            Text = $"{CreateDescription()} Disconnected",
+            Text = CreateDescription(),
             Icon = new(icons[BotIcon.Offline]),
             Visible = false,
             ContextMenuStrip = contextMenu
@@ -74,7 +74,7 @@ public class AppTray
     {
         await Task.Run(Agent.Mre.WaitOne);
         //testMenuItem.Available = false;
-        tray.Text = $"{CreateDescription()} {jenkins.Status}";
+        tray.Text = CreateDescription();
         startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
         preventlockMenuItem.Enabled = false;
         screensaverSubMenu.Available = false;
@@ -112,7 +112,7 @@ public class AppTray
             }
             else
             {
-                MessageBoxHelper.ShowErrorFireForget("You need to run program as admin\nand make sure bot config is valid!");
+                MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.AdminRequired));
             }
         }
         contextMenu.Enabled = true;
@@ -158,16 +158,16 @@ public class AppTray
         string msg;
         switch (jenkins.Status)
         {
-            case ConnectionStatus.Connected:
+            case ConnectionStatus.Connected or ConnectionStatus.Retry:
                 msg = "Are you sure to disconnect from the server?";
                 if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Disconnect", msg)) {
-                    jenkins.Disconnect(); 
+                    jenkins.Disconnect();
                 }
                 break;
             case ConnectionStatus.Disconnected:
                 msg = "Are you sure to connect to the server?";
-                if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Connect", msg)) {
-                    await jenkins.ReloadConnection();
+                if ((DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Connect", msg)) && (await jenkins.Initialize())) {
+                    await jenkins.Connect();
                 }
                 break;
         }
@@ -182,14 +182,18 @@ public class AppTray
         {
             switch (jenkins.Status, config.Client.IsAutoReconnect)
             {
-                case (ConnectionStatus.Disconnected, true):
+                case (ConnectionStatus.Retry, true):
+                    config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
                     jenkins.Disconnect();
                     break;
                 case (ConnectionStatus.Disconnected, false):
-                    await jenkins.ReloadConnection();
+                    config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
+                    if (await jenkins.Initialize()) { await jenkins.Connect(); }
+                    break;
+                default:
+                    config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
                     break;
             }
-            config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
             reconnectMenuItem.Checked = config.Client.IsAutoReconnect;
             connectMenuItem.Enabled = !reconnectMenuItem.Checked;
             await config.Save();
@@ -206,21 +210,14 @@ public class AppTray
                 case ConnectionStatus.Initialize:
                     configSubMenu.Available = false;
                     connectionSubMenu.Available = false;
-                    tray.Text = $"{CreateDescription()} Initialize, please wait";
                     break;
-                case ConnectionStatus.Connected:
+                case ConnectionStatus.Connected or ConnectionStatus.Retry or ConnectionStatus.Disconnected:
                     configSubMenu.Available = true;
                     connectionSubMenu.Available = true;
-                    connectMenuItem.Text = "Disconnect";
-                    tray.Text = $"{CreateDescription()} {e.Status}";
-                    break;
-                case ConnectionStatus.Disconnected:
-                    configSubMenu.Available = true;
-                    connectionSubMenu.Available = true;
-                    connectMenuItem.Text = "Connect";
-                    tray.Text = $"{CreateDescription()} {e.Status}";
+                    connectMenuItem.Text = e.Status == ConnectionStatus.Disconnected ? "Connect" : "Disconnect";
                     break;
             }
+            tray.Text = CreateDescription();
             tray.Icon = new(icons[e.Icon]);
         }
         catch (Exception ex)
@@ -257,7 +254,7 @@ public class AppTray
 
     private void OnConfigChanged(object? sender, EventArgs e)
     {
-        tray.Text = $"{CreateDescription()} {jenkins.Status}";
+        tray.Text = CreateDescription();
         // handle task scheduler
         TaskSchedulerHelper.Create(config.Server.TaskSchedulerName, App.Title, App.BaseDir, true);
         startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
@@ -279,6 +276,18 @@ public class AppTray
     }
 
     private string CreateDescription()
-        => $"{App.Description} v{App.Version?.Major}.{App.Version?.Minor}.{App.Version?.Build} " +
-           $"({(App.IsAdministrator ? "Admin" : "Standard")})\nBot Id: {config.Client.BotId}\nStatus:";
+    {
+        string status = jenkins.Status switch
+        {
+            ConnectionStatus.Connected => "Connected to server",
+            ConnectionStatus.Disconnected => "Disconnected from server",
+            ConnectionStatus.Initialize => "Initialize, please wait",
+            ConnectionStatus.Retry => "Retry connection",
+            ConnectionStatus.Interrupted => "Interrupted",
+            ConnectionStatus.Unknown => "Unknown",
+            _ => "",
+        };
+        return $"{App.Description} v{App.Version?.Major}.{App.Version?.Minor}.{App.Version?.Build} " +
+               $"({(App.IsAdministrator ? "Admin" : "Standard")})\nBot Id: {config.Client.BotId}\nStatus: {status}";
+    }
 }

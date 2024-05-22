@@ -1,5 +1,4 @@
 using Bot.Helpers;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Linq;
 using System.Threading;
@@ -7,14 +6,14 @@ using System.Threading.Tasks;
 
 namespace Bot.Services;
 
-public class Agent(ILogger<Agent> logger, Config config, Jenkins jenkins, ScreenSaver screenSaver)
+public class Agent(Config config, Jenkins jenkins, ScreenSaver screenSaver)
 {
     public static readonly ManualResetEvent Mre = new(false);
 
     public async void Initialize()
     {
         SetEnvironmentVariable();
-        bool isConfigValid = await config.Reload(true);
+        await config.Reload();
         if (TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) == null)
         {
             TaskSchedulerHelper.Create(config.Server.TaskSchedulerName, App.Title, App.BaseDir, true);
@@ -22,7 +21,7 @@ public class Agent(ILogger<Agent> logger, Config config, Jenkins jenkins, Screen
         Mre.Set();
         await Task.Run(App.Mre.WaitOne);
         bool atStartup = (App.Lifetime().Args ?? []).Contains("startup");
-        if (!(isConfigValid && await jenkins.ReloadConnection(atStartup))) { logger.LogError("Initialize failed"); }
+        if (config.IsValid && await jenkins.Initialize()) { await jenkins.Connect(atStartup); }
         screenSaver.Initialize();
     }
 

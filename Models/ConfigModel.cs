@@ -4,8 +4,7 @@ namespace Bot.Models;
 
 public enum BotIcon { Normal, Offline }
 public enum ExtensionStatus { Valid, Invalid, Expired }
-public enum ConnectionStatus { Initialize, Connected, Disconnected }
-public enum ConnectionOutputEvent { Connected, DisconnectedThenRetry, DisconnectedThenExit, DisconnectedTemporary, Unknown }
+public enum ConnectionStatus { Connected, Disconnected, Initialize, Retry, Interrupted, Unknown }
 
 public sealed class ClientConfig
 {
