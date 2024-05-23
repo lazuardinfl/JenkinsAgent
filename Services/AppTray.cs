@@ -134,22 +134,24 @@ public class AppTray
 
     private void OnPreventLockStatusChanged(object? sender, ScreenSaverEventArgs e)
     {
-        switch (e.PreventLockStatus)
-        {
-            case ExtensionStatus.Valid:
-                screensaverSubMenu.Available = true;
-                preventlockMenuItem.Enabled = true;
-                break;
-            case ExtensionStatus.Invalid:
-                screensaverSubMenu.Available = false;
-                preventlockMenuItem.Enabled = false;
-                break;
-            case ExtensionStatus.Expired:
-                screensaverSubMenu.Available = true;
-                preventlockMenuItem.Enabled = false;
-                break;
-        }
-        expiredMenuItem.Text = $"Expired: {e.PreventLockExpiredDate:d MMMM yyyy}";
+        App.GetUIThread().Post(() => {
+            switch (e.PreventLockStatus)
+            {
+                case ExtensionStatus.Valid:
+                    screensaverSubMenu.Available = true;
+                    preventlockMenuItem.Enabled = true;
+                    break;
+                case ExtensionStatus.Invalid:
+                    screensaverSubMenu.Available = false;
+                    preventlockMenuItem.Enabled = false;
+                    break;
+                case ExtensionStatus.Expired:
+                    screensaverSubMenu.Available = true;
+                    preventlockMenuItem.Enabled = false;
+                    break;
+            }
+            expiredMenuItem.Text = $"Expired: {e.PreventLockExpiredDate:d MMMM yyyy}";
+        });
     }
 
     private async void Connect()
@@ -203,27 +205,29 @@ public class AppTray
 
     private void OnConnectionChanged(object? sender, JenkinsEventArgs e)
     {
-        try
-        {
-            switch (e.Status)
+        App.GetUIThread().Post(() => {
+            try
             {
-                case ConnectionStatus.Initialize:
-                    configSubMenu.Available = false;
-                    connectionSubMenu.Available = false;
-                    break;
-                case ConnectionStatus.Connected or ConnectionStatus.Retry or ConnectionStatus.Disconnected:
-                    configSubMenu.Available = true;
-                    connectionSubMenu.Available = true;
-                    connectMenuItem.Text = e.Status == ConnectionStatus.Disconnected ? "Connect" : "Disconnect";
-                    break;
+                switch (e.Status)
+                {
+                    case ConnectionStatus.Initialize:
+                        configSubMenu.Available = false;
+                        connectionSubMenu.Available = false;
+                        break;
+                    case ConnectionStatus.Connected or ConnectionStatus.Retry or ConnectionStatus.Disconnected:
+                        configSubMenu.Available = true;
+                        connectionSubMenu.Available = true;
+                        connectMenuItem.Text = e.Status == ConnectionStatus.Disconnected ? "Connect" : "Disconnect";
+                        break;
+                }
+                tray.Text = CreateDescription();
+                tray.Icon = new(icons[e.Icon]);
             }
-            tray.Text = CreateDescription();
-            tray.Icon = new(icons[e.Icon]);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "{msg}", ex.Message);
-        }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "{msg}", ex.Message);
+            }
+        });
     }
 
     private async void Reload()
@@ -243,20 +247,19 @@ public class AppTray
         string msg = "Are you sure to reset config?\nYour current config will be deleted";
         if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Reset", msg))
         {
-            config.Client = new();
-            config.Server = new();
-            await config.Save();
-            await config.Reload(true);
+            await config.Reset();
         }
         contextMenu.Enabled = true;
     }
 
     private void OnConfigReloaded(object? sender, EventArgs e)
     {
-        tray.Text = CreateDescription();
-        // handle task scheduler
-        TaskSchedulerHelper.Create(config.Server.TaskSchedulerName, App.Title, App.BaseDir, true);
-        startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
+        App.GetUIThread().Post(() => {
+            tray.Text = CreateDescription();
+            // handle task scheduler
+            TaskSchedulerHelper.Create(config.Server.TaskSchedulerName, App.Title, App.BaseDir, true);
+            startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
+        });
     }
 
     private async void Exit()
@@ -264,6 +267,9 @@ public class AppTray
         contextMenu.Enabled = false;
         if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Exit", "Are you sure to exit application?"))
         {
+            config.Reloaded -= OnConfigReloaded;
+            jenkins.ConnectionChanged -= OnConnectionChanged;
+            screenSaver.PreventLockStatusChanged -= OnPreventLockStatusChanged;
             jenkins.Disconnect();
             tray.Visible = false;
             tray.Dispose();

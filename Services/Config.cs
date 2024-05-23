@@ -69,4 +69,13 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
             return false;
         }
     }
+
+    public async Task Reset()
+    {
+        Client = new();
+        Server = new();
+        IsValid = false;
+        await Save();
+        Reloaded?.Invoke(this, EventArgs.Empty);
+    }
 }

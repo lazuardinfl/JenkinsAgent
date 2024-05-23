@@ -84,7 +84,7 @@ public class Jenkins
                 process.Start();
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
-                logger.LogInformation("Jenkins process {pid} started", process.Id);
+                logger.LogInformation("Jenkins PID {pid} started", process.Id);
                 if (!await Task.Run(() => mre.WaitOne(atStartup ? config.Server.StartupConnectTimeout : config.Server.ConnectTimeout)))
                 {
                     Disconnect();
@@ -105,6 +105,7 @@ public class Jenkins
         try
         {
             logger.LogInformation("Jenkins disconnected");
+            logger.LogInformation("Jenkins PID {pid} exited", process.Id);
             process.CancelOutputRead();
             process.CancelErrorRead();
             process.Kill(true);
@@ -120,30 +121,19 @@ public class Jenkins
     private async Task<bool> Initialize()
     {
         bool isReady = false;
+        Status = ConnectionStatus.Initialize;
         // check config
         if (config.IsValid)
         {
             // check java
-            bool isJavaReady = IsJavaVersionCompatible();
-            if (!isJavaReady)
-            {
-                logger.LogInformation("Downloading Java");
-                Status = ConnectionStatus.Initialize;
-                isJavaReady = await DownloadJava();
-            }
+            bool isJavaReady = IsJavaVersionCompatible() || await DownloadJava();
             // check agent
-            bool isAgentReady = IsAgentVersionCompatible();
-            if (!isAgentReady)
-            {
-                logger.LogInformation("Downloading Agent");
-                Status = ConnectionStatus.Initialize;
-                isAgentReady = await DownloadAgent();
-            }
+            bool isAgentReady = isJavaReady && (IsAgentVersionCompatible() || await DownloadAgent());
             // assign ready status
             isReady = isJavaReady && isAgentReady;
         }
         await Task.Run(App.Mre.WaitOne);
-        Status = isReady ? ConnectionStatus.Retry : ConnectionStatus.Disconnected;
+        Status = isReady ? ConnectionStatus.Initialize : ConnectionStatus.Disconnected;
         if (!isReady) { MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed)); }
         return isReady;
     }
@@ -164,6 +154,7 @@ public class Jenkins
 
     private async Task<bool> DownloadJava()
     {
+        logger.LogInformation("Downloading Java");
         string javaDir = $"{App.ProfileDir}/{Path.GetDirectoryName(config.Server.JavaPath)}";
         try
         {
@@ -219,6 +210,7 @@ public class Jenkins
 
     private async Task<bool> DownloadAgent()
     {
+        logger.LogInformation("Downloading Agent");
         try
         {
             using (HttpClient httpClient = httpClientFactory.CreateClient())
@@ -284,17 +276,11 @@ public class Jenkins
                 break;
             case ConnectionStatus.Retry:
                 mre.Set();
-                if (config.Client.IsAutoReconnect)
-                {
-                    Status = ConnectionStatus.Retry;
-                }
+                if (config.Client.IsAutoReconnect) { Status = ConnectionStatus.Retry; }
                 else
                 {
-                    string msg = Status == ConnectionStatus.Retry ?
-                        MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed) :
-                        "Disconnected from server";
                     Disconnect();
-                    MessageBoxHelper.ShowErrorFireForget(msg);
+                    MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed));
                 }
                 break;
             case ConnectionStatus.Disconnected:
@@ -319,7 +305,6 @@ public class Jenkins
         Status = ConnectionStatus.Disconnected;
         try
         {
-            logger.LogInformation("Jenkins process {pid} exited", process.Id);
             process.Dispose();
         }
         catch (Exception ex)
