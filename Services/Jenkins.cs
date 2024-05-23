@@ -261,7 +261,7 @@ public class Jenkins
         return ConnectionStatus.Unknown;
     }
 
-    private void OnOutputReceived(object? sender, DataReceivedEventArgs e)
+    private async void OnOutputReceived(object? sender, DataReceivedEventArgs e)
     {
         logger.LogInformation("{data}", e.Data);
         switch (GetOutputStreamStatus(e.Data))
@@ -271,8 +271,8 @@ public class Jenkins
                 Status = ConnectionStatus.Connected;
                 break;
             case ConnectionStatus.Interrupted:
-                // raise event for extension
                 Status = ConnectionStatus.Interrupted;
+                if (!await config.Reload(true)) { Disconnect(); }
                 break;
             case ConnectionStatus.Retry:
                 mre.Set();
@@ -293,7 +293,7 @@ public class Jenkins
 
     private async void OnConfigReloaded(object? sender, EventArgs e)
     {
-        if (Status == ConnectionStatus.Connected || Status == ConnectionStatus.Retry || config.Client.IsAutoReconnect)
+        if (Status != ConnectionStatus.Interrupted && (Status != ConnectionStatus.Disconnected || config.Client.IsAutoReconnect))
         {
             Disconnect();
             if (config.IsValid) { await Connect(); }

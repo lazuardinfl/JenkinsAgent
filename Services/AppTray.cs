@@ -210,7 +210,7 @@ public class AppTray
             {
                 switch (e.Status)
                 {
-                    case ConnectionStatus.Initialize:
+                    case ConnectionStatus.Initialize or ConnectionStatus.Interrupted:
                         configSubMenu.Available = false;
                         connectionSubMenu.Available = false;
                         break;
@@ -248,6 +248,7 @@ public class AppTray
         if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Reset", msg))
         {
             await config.Reset();
+            reconnectMenuItem.Checked = config.Client.IsAutoReconnect;
         }
         contextMenu.Enabled = true;
     }
@@ -256,7 +257,6 @@ public class AppTray
     {
         App.GetUIThread().Post(() => {
             tray.Text = CreateDescription();
-            // handle task scheduler
             TaskSchedulerHelper.Create(config.Server.TaskSchedulerName, App.Title, App.BaseDir, true);
             startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
         });
