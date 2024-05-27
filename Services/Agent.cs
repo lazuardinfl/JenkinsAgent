@@ -1,8 +1,6 @@
-using Bot.Helpers;
 using System;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace Bot.Services;
 
@@ -13,19 +11,12 @@ public class Agent(Config config, Jenkins jenkins, ScreenSaver screenSaver)
     public async void Initialize()
     {
         SetEnvironmentVariable();
-        await config.Reload();
-        if (TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) == null)
+        if (await config.Reload())
         {
-            TaskSchedulerHelper.Create(config.Server.TaskSchedulerName, App.Title, App.BaseDir, true);
+            screenSaver.Initialize();
+            await jenkins.Connect((App.Lifetime().Args ?? []).Contains("startup"));
         }
         Mre.Set();
-        await Task.Run(App.Mre.WaitOne);
-        bool atStartup = (App.Lifetime().Args ?? []).Contains("startup");
-        if (config.IsValid)
-        {
-            await jenkins.Connect(atStartup);
-            screenSaver.Initialize();
-        }
     }
 
     private static void SetEnvironmentVariable()

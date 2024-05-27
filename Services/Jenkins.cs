@@ -132,7 +132,6 @@ public class Jenkins
             // assign ready status
             isReady = isJavaReady && isAgentReady;
         }
-        await Task.Run(App.Mre.WaitOne);
         Status = isReady ? ConnectionStatus.Initialize : ConnectionStatus.Disconnected;
         if (!isReady) { MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed)); }
         return isReady;

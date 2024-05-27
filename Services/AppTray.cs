@@ -60,7 +60,7 @@ public class AppTray
         };
         tray = new()
         {
-            Text = CreateDescription(),
+            Text = "Please wait ...",
             Icon = new(icons[BotIcon.Offline]),
             Visible = false,
             ContextMenuStrip = contextMenu
@@ -72,16 +72,21 @@ public class AppTray
 
     public async void Initialize()
     {
-        await Task.Run(Agent.Mre.WaitOne);
+        contextMenu.Enabled = false;
         //testMenuItem.Available = false;
-        tray.Text = CreateDescription();
-        startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
+        startupMenuItem.Available = false;
         preventlockMenuItem.Enabled = false;
         screensaverSubMenu.Available = false;
+        tray.Visible = true;
+        await Task.Run(() => {
+            App.Mre.WaitOne();
+            Agent.Mre.WaitOne();
+        });
+        tray.Text = CreateDescription();
         preventlockMenuItem.Checked = config.Client.IsPreventLock;
         reconnectMenuItem.Checked = config.Client.IsAutoReconnect;
         connectMenuItem.Enabled = !reconnectMenuItem.Checked;
-        tray.Visible = true;
+        contextMenu.Enabled = true;
     }
 
     public void RegisterShowMainWindow(MainWindowViewModel mainWindow) => showMainWindow = mainWindow.Show;
