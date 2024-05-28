@@ -1,5 +1,4 @@
 using Bot.Helpers;
-using Bot.Models;
 using Bot.ViewModels;
 using Microsoft.Extensions.Logging;
 using System;
@@ -9,11 +8,14 @@ using System.Windows.Forms;
 
 namespace Bot.Services;
 
+public enum BotIcon { Normal, Offline }
+
 public class AppTray
 {
     private readonly ILogger logger;
     private readonly Config config;
     private readonly Jenkins jenkins;
+    private readonly AutoStartup autoStartup;
     private readonly ScreenSaver screenSaver;
     private readonly Dictionary<BotIcon, string> icons;
     private readonly ToolStripMenuItem testMenuItem;
@@ -27,11 +29,12 @@ public class AppTray
     private readonly NotifyIcon tray;
     private Action<Page> showMainWindow = null!;
 
-    public AppTray(ILogger<AppTray> logger, Config config, Jenkins jenkins, ScreenSaver screenSaver)
+    public AppTray(ILogger<AppTray> logger, Config config, Jenkins jenkins, AutoStartup autoStartup, ScreenSaver screenSaver)
     {
         this.logger = logger;
         this.config = config;
         this.jenkins = jenkins;
+        this.autoStartup = autoStartup;
         this.screenSaver = screenSaver;
         icons = new() {
             { BotIcon.Normal, $"{App.BaseDir}/resources/normal.ico" },
@@ -60,27 +63,33 @@ public class AppTray
         };
         tray = new()
         {
-            Text = $"{App.Description}\n{jenkins.Status}",
+            Text = "Please wait ...",
             Icon = new(icons[BotIcon.Offline]),
             Visible = false,
             ContextMenuStrip = contextMenu
         };
-        config.Changed += OnConfigChanged;
+        config.Reloaded += OnConfigReloaded;
         jenkins.ConnectionChanged += OnConnectionChanged;
+        autoStartup.Changed += OnAutoStartupChanged;
         screenSaver.PreventLockStatusChanged += OnPreventLockStatusChanged;
     }
 
     public async void Initialize()
     {
-        await Task.Run(Agent.Mre.WaitOne);
         testMenuItem.Available = false;
-        startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
         preventlockMenuItem.Enabled = false;
         screensaverSubMenu.Available = false;
+        contextMenu.Enabled = false;
+        tray.Visible = true;
+        await Task.Run(() => {
+            App.Mre.WaitOne();
+            Agent.Mre.WaitOne();
+        });
+        tray.Text = CreateDescription();
         preventlockMenuItem.Checked = config.Client.IsPreventLock;
         reconnectMenuItem.Checked = config.Client.IsAutoReconnect;
         connectMenuItem.Enabled = !reconnectMenuItem.Checked;
-        tray.Visible = true;
+        contextMenu.Enabled = true;
     }
 
     public void RegisterShowMainWindow(MainWindowViewModel mainWindow) => showMainWindow = mainWindow.Show;
@@ -91,7 +100,7 @@ public class AppTray
         logger.LogInformation("Test on thread {threadId}", Environment.CurrentManagedThreadId);
         try
         {
-            //
+            //logger.LogInformation("{data}", App.Hash);
         }
         catch (Exception e)
         {
@@ -103,18 +112,18 @@ public class AppTray
     {
         contextMenu.Enabled = false;
         string msg = $"Are you sure to {(startupMenuItem.Checked ? "disable" : "enable")} auto startup?";
-        if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Startup", msg))
+        if ((DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Startup", msg)) && !autoStartup.Enable(!startupMenuItem.Checked))
         {
-            if (TaskSchedulerHelper.Enable(config.Server.TaskSchedulerName, !startupMenuItem.Checked))
-            {
-                startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
-            }
-            else
-            {
-                MessageBoxHelper.ShowErrorFireForget("You need to run program as admin\nand make sure bot config is valid!");
-            }
+            MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.AdminRequired));
         }
         contextMenu.Enabled = true;
+    }
+
+    private void OnAutoStartupChanged(object? sender, EventArgs e)
+    {
+        App.GetUIThread().Post(() => {
+            startupMenuItem.Checked = autoStartup.Enabled;
+        });
     }
 
     private async void PreventLock()
@@ -133,22 +142,24 @@ public class AppTray
 
     private void OnPreventLockStatusChanged(object? sender, ScreenSaverEventArgs e)
     {
-        switch (e.PreventLockStatus)
-        {
-            case ExtensionStatus.Valid:
-                screensaverSubMenu.Available = true;
-                preventlockMenuItem.Enabled = true;
-                break;
-            case ExtensionStatus.Invalid:
-                screensaverSubMenu.Available = false;
-                preventlockMenuItem.Enabled = false;
-                break;
-            case ExtensionStatus.Expired:
-                screensaverSubMenu.Available = true;
-                preventlockMenuItem.Enabled = false;
-                break;
-        }
-        expiredMenuItem.Text = $"Expired: {e.PreventLockExpiredDate:d MMMM yyyy}";
+        App.GetUIThread().Post(() => {
+            switch (e.PreventLockStatus)
+            {
+                case ExtensionStatus.Valid:
+                    screensaverSubMenu.Available = true;
+                    preventlockMenuItem.Enabled = true;
+                    break;
+                case ExtensionStatus.Invalid:
+                    screensaverSubMenu.Available = false;
+                    preventlockMenuItem.Enabled = false;
+                    break;
+                case ExtensionStatus.Expired:
+                    screensaverSubMenu.Available = true;
+                    preventlockMenuItem.Enabled = false;
+                    break;
+            }
+            expiredMenuItem.Text = $"Expired: {e.PreventLockExpiredDate:d MMMM yyyy}";
+        });
     }
 
     private async void Connect()
@@ -157,16 +168,16 @@ public class AppTray
         string msg;
         switch (jenkins.Status)
         {
-            case ConnectionStatus.Connected:
+            case ConnectionStatus.Connected or ConnectionStatus.Retry:
                 msg = "Are you sure to disconnect from the server?";
                 if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Disconnect", msg)) {
-                    jenkins.Disconnect(); 
+                    jenkins.Disconnect();
                 }
                 break;
             case ConnectionStatus.Disconnected:
                 msg = "Are you sure to connect to the server?";
                 if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Connect", msg)) {
-                    await jenkins.ReloadConnection();
+                    await jenkins.Connect();
                 }
                 break;
         }
@@ -181,14 +192,18 @@ public class AppTray
         {
             switch (jenkins.Status, config.Client.IsAutoReconnect)
             {
-                case (ConnectionStatus.Disconnected, true):
-                    jenkins.Disconnect(false);
+                case (ConnectionStatus.Retry, true):
+                    config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
+                    jenkins.Disconnect();
                     break;
                 case (ConnectionStatus.Disconnected, false):
-                    await jenkins.ReloadConnection();
+                    config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
+                    await jenkins.Connect();
+                    break;
+                default:
+                    config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
                     break;
             }
-            config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
             reconnectMenuItem.Checked = config.Client.IsAutoReconnect;
             connectMenuItem.Enabled = !reconnectMenuItem.Checked;
             await config.Save();
@@ -198,34 +213,22 @@ public class AppTray
 
     private void OnConnectionChanged(object? sender, JenkinsEventArgs e)
     {
-        try
-        {
+        App.GetUIThread().Post(() => {
             switch (e.Status)
             {
-                case ConnectionStatus.Initialize:
+                case ConnectionStatus.Initialize or ConnectionStatus.Interrupted:
                     configSubMenu.Available = false;
                     connectionSubMenu.Available = false;
-                    tray.Text = $"{App.Description}\nInitialize, please wait";
                     break;
-                case ConnectionStatus.Connected:
+                case ConnectionStatus.Connected or ConnectionStatus.Retry or ConnectionStatus.Disconnected:
                     configSubMenu.Available = true;
                     connectionSubMenu.Available = true;
-                    connectMenuItem.Text = "Disconnect";
-                    tray.Text = $"{App.Description}\n{e.Status}";
-                    break;
-                case ConnectionStatus.Disconnected:
-                    configSubMenu.Available = true;
-                    connectionSubMenu.Available = true;
-                    connectMenuItem.Text = "Connect";
-                    tray.Text = $"{App.Description}\n{e.Status}";
+                    connectMenuItem.Text = e.Status == ConnectionStatus.Disconnected ? "Connect" : "Disconnect";
                     break;
             }
+            tray.Text = CreateDescription();
             tray.Icon = new(icons[e.Icon]);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "{msg}", ex.Message);
-        }
+        });
     }
 
     private async void Reload()
@@ -234,8 +237,7 @@ public class AppTray
         string msg = "Are you sure to reload config?\nConnection will be reset";
         if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Reload", msg))
         {
-            await config.Reload();
-            config.RaiseChanged(this, EventArgs.Empty);
+            await config.Reload(true);
         }
         contextMenu.Enabled = true;
     }
@@ -246,19 +248,21 @@ public class AppTray
         string msg = "Are you sure to reset config?\nYour current config will be deleted";
         if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Reset", msg))
         {
-            config.Client = new();
-            config.Server = new();
-            await config.Save();
-            config.RaiseChanged(this, EventArgs.Empty);
+            await config.Reset();
         }
         contextMenu.Enabled = true;
     }
 
-    private void OnConfigChanged(object? sender, EventArgs e)
+    private void OnConfigReloaded(object? sender, EventArgs e)
     {
-        // handle task scheduler
-        TaskSchedulerHelper.Create(config.Server.TaskSchedulerName, App.Title, App.BaseDir, true);
-        startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
+        App.GetUIThread().Post(() => {
+            if (!config.IsValid)
+            {
+                tray.Text = CreateDescription();
+                preventlockMenuItem.Checked = config.Client.IsPreventLock;
+                reconnectMenuItem.Checked = config.Client.IsAutoReconnect;
+            }
+        });
     }
 
     private async void Exit()
@@ -266,6 +270,10 @@ public class AppTray
         contextMenu.Enabled = false;
         if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Exit", "Are you sure to exit application?"))
         {
+            config.Reloaded -= OnConfigReloaded;
+            jenkins.ConnectionChanged -= OnConnectionChanged;
+            autoStartup.Changed -= OnAutoStartupChanged;
+            screenSaver.PreventLockStatusChanged -= OnPreventLockStatusChanged;
             jenkins.Disconnect();
             tray.Visible = false;
             tray.Dispose();
@@ -274,5 +282,21 @@ public class AppTray
             Environment.Exit(0);
         }
         contextMenu.Enabled = true;
+    }
+
+    private string CreateDescription()
+    {
+        string status = jenkins.Status switch
+        {
+            ConnectionStatus.Connected => "Connected to server",
+            ConnectionStatus.Disconnected => "Disconnected from server",
+            ConnectionStatus.Initialize => "Initialize, please wait",
+            ConnectionStatus.Retry => "Retry connection",
+            ConnectionStatus.Interrupted => "Interrupted",
+            ConnectionStatus.Unknown => "Unknown",
+            _ => "",
+        };
+        return $"{App.Description} v{App.Version?.Major}.{App.Version?.Minor}.{App.Version?.Build} " +
+               $"({(App.IsAdministrator ? "Admin" : "Standard")})\nBot Id: {config.Client.BotId}\nStatus: {status}";
     }
 }

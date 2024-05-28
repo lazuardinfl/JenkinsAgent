@@ -2,6 +2,7 @@ using Bot.Helpers;
 using Bot.Models;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -13,12 +14,15 @@ using System.Threading.Tasks;
 
 namespace Bot.Services;
 
+public enum ConnectionStatus { Connected, Disconnected, Initialize, Retry, Interrupted, Unknown }
+
 public class Jenkins
 {
-    private static readonly ManualResetEvent mre = new(false);
+    private readonly ManualResetEvent mre = new(false);
     private readonly ILogger logger;
     private readonly IHttpClientFactory httpClientFactory;
     private readonly Config config;
+    private readonly Dictionary<ConnectionStatus, string[]> outputStreams;
     private ConnectionStatus status = ConnectionStatus.Disconnected;
     private Process process = null!;
 
@@ -27,7 +31,17 @@ public class Jenkins
         this.logger = logger;
         this.httpClientFactory = httpClientFactory;
         this.config = config;
-        config.Changed += OnConfigChanged;
+        config.Reloaded += OnConfigReloaded;
+        outputStreams = new()
+        {
+            { ConnectionStatus.Connected, ["INFO: Connected"] },
+            { ConnectionStatus.Interrupted, ["Write side closed"] },
+            { ConnectionStatus.Retry, ["Failed to obtain", "is not ready"] },
+            { ConnectionStatus.Disconnected, [
+                "buffer too short", "For input string", "Invalid byte", "takes an operand",
+                "No subject alternative DNS", "SEVERE: Handshake error"
+            ]}
+        };
     }
 
     public event EventHandler<JenkinsEventArgs>? ConnectionChanged;
@@ -35,98 +49,94 @@ public class Jenkins
     public ConnectionStatus Status
     {
         get { return status; }
-        set
+        private set
         {
-            status = value;
-            JenkinsEventArgs args = new()
+            if (status != value && status != ConnectionStatus.Unknown)
             {
-                Status = value,
-                Icon = value == ConnectionStatus.Connected ? BotIcon.Normal : BotIcon.Offline,
-            };
-            ConnectionChanged?.Invoke(this, args);
+                status = value;
+                JenkinsEventArgs args = new()
+                {
+                    Status = value,
+                    Icon = value == ConnectionStatus.Connected ? BotIcon.Normal : BotIcon.Offline,
+                };
+                ConnectionChanged?.Invoke(this, args);
+            }
         }
     }
 
-    public async Task<bool> Initialize()
+    public async Task Connect(bool atStartup = false)
     {
-        // check java
-        bool isJavaReady = IsJavaVersionCompatible();
-        if (!isJavaReady)
+        if (await Initialize())
         {
-            logger.LogInformation("Downloading Java");
-            Status = ConnectionStatus.Initialize;
-            isJavaReady = await DownloadJava();
+            try
+            {
+                mre.Reset();
+                process = new();
+                process.StartInfo.FileName = $"{App.ProfileDir}/{config.Server.JavaPath}/java.exe";
+                process.StartInfo.Arguments = $"-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT -jar {config.Server.AgentPath} {CreateAgentArguments()}";
+                process.StartInfo.WorkingDirectory = App.ProfileDir;
+                process.StartInfo.UseShellExecute = false;
+                process.StartInfo.CreateNoWindow = true;
+                process.StartInfo.RedirectStandardOutput = true;
+                process.StartInfo.RedirectStandardError = true;
+                process.EnableRaisingEvents = true;
+                process.OutputDataReceived += new DataReceivedEventHandler(OnOutputReceived);
+                process.ErrorDataReceived += new DataReceivedEventHandler(OnOutputReceived);
+                process.Exited += new EventHandler(OnExited);
+                process.Start();
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+                logger.LogInformation("Jenkins PID {pid} started", process.Id);
+                if (!await Task.Run(() => mre.WaitOne(atStartup ? config.Server.StartupConnectTimeout : config.Server.ConnectTimeout)))
+                {
+                    Disconnect();
+                    MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed));
+                }
+            }
+            catch (Exception e)
+            {
+                Status = ConnectionStatus.Disconnected;
+                logger.LogError(e, "{msg}", e.Message);
+                MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.UnexpectedError));
+            }
         }
-        // check agent
-        bool isAgentReady = IsAgentVersionCompatible();
-        if (!isAgentReady)
-        {
-            logger.LogInformation("Downloading Agent");
-            Status = ConnectionStatus.Initialize;
-            isAgentReady = await DownloadAgent();
-        }
-        // assign ready status
-        await Task.Run(App.Mre.WaitOne);
-        bool isReady = isJavaReady && isAgentReady;
-        Status = isReady ? ConnectionStatus.Initialize : ConnectionStatus.Disconnected;
-        return isReady;
     }
 
-    public async Task<bool> Connect(bool atStartup = false)
-    {
-        try
-        {
-            mre.Reset();
-            process = new();
-            process.StartInfo.FileName = $"{App.ProfileDir}/{config.Server.JavaPath}/java.exe";
-            process.StartInfo.Arguments = $"-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT -jar {config.Server.AgentPath} {CreateAgentArguments()}";
-            process.StartInfo.WorkingDirectory = App.ProfileDir;
-            process.StartInfo.UseShellExecute = false;
-            process.StartInfo.CreateNoWindow = true;
-            process.StartInfo.RedirectStandardOutput = true;
-            process.StartInfo.RedirectStandardError = true;
-            process.EnableRaisingEvents = true;
-            process.OutputDataReceived += new DataReceivedEventHandler(OnOutputReceived);
-            process.ErrorDataReceived += new DataReceivedEventHandler(OnOutputReceived);
-            process.Exited += new EventHandler(OnExited);
-            process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-            await Task.Run(() => mre.WaitOne(atStartup ? config.Server.StartupConnectTimeout : config.Server.ConnectTimeout));
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "{msg}", e.Message);
-        }
-        if (Status != ConnectionStatus.Connected) { Disconnect(); }
-        return Status == ConnectionStatus.Connected;
-    }
-
-    public void Disconnect(bool setStatus = true)
+    public void Disconnect()
     {
         try
         {
-            process.Kill(true);
             logger.LogInformation("Jenkins disconnected");
+            logger.LogInformation("Jenkins PID {pid} exited", process.Id);
+            process.CancelOutputRead();
+            process.CancelErrorRead();
+            process.Kill(true);
+            process.Close();
         }
         catch (Exception e)
         {
             logger.LogError(e, "{msg}", e.Message);
         }
-        finally
-        {
-            if (setStatus) { Status = ConnectionStatus.Disconnected; }
-        }
+        Status = ConnectionStatus.Disconnected;
     }
 
-    public async Task<bool> ReloadConnection(bool atStartup = false)
+    private async Task<bool> Initialize()
     {
-        if (!(await Initialize() && await Connect(atStartup)))
+        bool isReady = false;
+        Status = ConnectionStatus.Initialize;
+        // check config
+        if (config.IsValid)
         {
-            MessageBoxHelper.ShowErrorFireForget("Connection failed. Make sure connected\nto server and bot config is valid!");
-            return false;
+            // check java
+            bool isJavaReady = IsJavaVersionCompatible() || await DownloadJava();
+            // check agent
+            bool isAgentReady = isJavaReady && (IsAgentVersionCompatible() || await DownloadAgent());
+            // assign ready status
+            isReady = isJavaReady && isAgentReady;
         }
-        return true;
+        Status = isReady ? ConnectionStatus.Initialize : ConnectionStatus.Disconnected;
+        if (!isReady) { MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed)); }
+        return isReady;
     }
 
     private bool IsJavaVersionCompatible()
@@ -145,6 +155,7 @@ public class Jenkins
 
     private async Task<bool> DownloadJava()
     {
+        logger.LogInformation("Downloading Java");
         string javaDir = $"{App.ProfileDir}/{Path.GetDirectoryName(config.Server.JavaPath)}";
         try
         {
@@ -200,6 +211,7 @@ public class Jenkins
 
     private async Task<bool> DownloadAgent()
     {
+        logger.LogInformation("Downloading Agent");
         try
         {
             using (HttpClient httpClient = httpClientFactory.CreateClient())
@@ -231,55 +243,75 @@ public class Jenkins
         foreach (Match match in matches.Cast<Match>())
         {
             arguments = arguments.Replace(match.Groups[0].Value, match.Groups[1].Value == "BotToken" ?
-                DataProtectionHelper.DecryptDataAsText(config.Client.BotToken, DataProtectionHelper.Base64Encode(config.Client.BotId)) :
+                CryptographyHelper.DecryptWithDPAPI(config.Client.BotToken, CryptographyHelper.Base64Encode(config.Client.BotId)) :
                 Helper.GetProperty<string, ClientConfig>(config.Client, match.Groups[1].Value)
             );
         }
         return arguments;
     }
 
-    private async void OnConfigChanged(object? sender, EventArgs e)
+    private ConnectionStatus GetOutputStreamStatus(string? outputData)
     {
-        if (Status == ConnectionStatus.Connected || config.Client.IsAutoReconnect)
+        if (outputData != null)
         {
-            Disconnect(false);
-            await ReloadConnection();
+            foreach (ConnectionStatus output in outputStreams.Keys)
+            {
+                if (outputStreams[output].Any(outputData.Contains)) { return output; }
+            }
+        }
+        return ConnectionStatus.Unknown;
+    }
+
+    private async void OnOutputReceived(object? sender, DataReceivedEventArgs e)
+    {
+        logger.LogInformation("{data}", e.Data);
+        switch (GetOutputStreamStatus(e.Data))
+        {
+            case ConnectionStatus.Connected:
+                mre.Set();
+                Status = ConnectionStatus.Connected;
+                break;
+            case ConnectionStatus.Interrupted:
+                Status = ConnectionStatus.Interrupted;
+                if (!await config.Reload(true)) { Disconnect(); }
+                break;
+            case ConnectionStatus.Retry:
+                mre.Set();
+                if (config.Client.IsAutoReconnect) { Status = ConnectionStatus.Retry; }
+                else
+                {
+                    Disconnect();
+                    MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed));
+                }
+                break;
+            case ConnectionStatus.Disconnected:
+                mre.Set();
+                Status = ConnectionStatus.Disconnected;
+                MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed));
+                break;
         }
     }
 
-    private void OnOutputReceived(object? sender, DataReceivedEventArgs e)
+    private async void OnConfigReloaded(object? sender, EventArgs e)
     {
-        logger.LogInformation("{data}", e.Data);
-        // null to prevent exception
-        if (e.Data is null) {}
-        // connected first time or after disconnected
-        else if (e.Data.Contains("INFO: Connected"))
+        if (Status != ConnectionStatus.Interrupted && (Status != ConnectionStatus.Disconnected || config.Client.IsAutoReconnect))
         {
-            Status = ConnectionStatus.Connected;
-            mre.Set();
-        }
-        // disconnected at first time
-        else if (e.Data.Contains("Failed to obtain") || e.Data.Contains("buffer too short") || e.Data.Contains("For input string") ||
-                 e.Data.Contains("SEVERE: Handshake error") || e.Data.Contains("Invalid byte") || e.Data.Contains("takes an operand"))
-        {
-            mre.Set();
-        }
-        // disconnected in the middle connection
-        else if (e.Data.Contains("is not ready"))
-        {
-            if (Status != ConnectionStatus.Disconnected) { Status = ConnectionStatus.Disconnected; }
-            if (!config.Client.IsAutoReconnect)
-            {
-                Disconnect(false);
-                MessageBoxHelper.ShowErrorFireForget("Disconnected from server");
-            }
+            Disconnect();
+            if (config.IsValid) { await Connect(); }
         }
     }
 
     private void OnExited(object? sender, EventArgs e)
     {
-        process.Dispose();
-        logger.LogInformation("Jenkins process exited");
+        Status = ConnectionStatus.Disconnected;
+        try
+        {
+            process.Dispose();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "{msg}", ex.Message);
+        }
     }
 }
 

@@ -24,7 +24,7 @@ public partial class ConfigViewModel : PageViewModelBase
     public ConfigViewModel(Config config)
     {
         this.config = config;
-        config.Changed += OnConfigChanged;
+        config.Reloaded += OnConfigReloaded;
         Initialize();
     }
 
@@ -41,7 +41,7 @@ public partial class ConfigViewModel : PageViewModelBase
         BotToken = config.Client.BotToken;
     }
 
-    private void OnConfigChanged(object? sender, EventArgs e) => SetValueOnUI();
+    private void OnConfigReloaded(object? sender, EventArgs e) => SetValueOnUI();
 
     [RelayCommand]
     private async Task Apply()
@@ -54,13 +54,12 @@ public partial class ConfigViewModel : PageViewModelBase
             if (config.Client.BotToken != BotToken)
             {
                 BotToken = Helper.RemoveWhitespaces(BotToken ?? "");
-                BotToken = DataProtectionHelper.EncryptDataAsText(BotToken, DataProtectionHelper.Base64Encode(BotId));
+                BotToken = CryptographyHelper.EncryptWithDPAPI(BotToken, CryptographyHelper.Base64Encode(BotId));
                 config.Client.BotToken = BotToken;
             }
             Hide();
             await config.Save();
-            await config.Reload();
-            config.RaiseChanged(this, EventArgs.Empty);
+            await config.Reload(true);
         }
     }
 

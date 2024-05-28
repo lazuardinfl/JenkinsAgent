@@ -22,6 +22,8 @@ public partial class App : Application
     public static readonly string Title = Helper.GetAppTitle() ?? "Bot";
     public static readonly string Description = Helper.GetAppDescription() ?? "Bot Agent";
     public static readonly Version? Version = Helper.GetAppVersion();
+    public static readonly string Hash = Helper.GetAppHash();
+    public static readonly bool IsAdministrator = Helper.IsAppElevated();
     public static readonly string BaseDir = Helper.GetBaseDir().Replace(@"\", "/");
     public static readonly string ProfileDir = $"{Helper.GetUserDir().Replace(@"\", "/")}/{Title}";
     public static readonly ManualResetEvent Mre = new(false);
@@ -47,6 +49,7 @@ public partial class App : Application
         });
         builder.Services.AddHttpClient();
         builder.Services.AddSingleton<Config>();
+        builder.Services.AddSingleton<AutoStartup>();
         builder.Services.AddSingleton<ScreenSaver>();
         builder.Services.AddSingleton<Jenkins>();
         builder.Services.AddSingleton<Agent>();

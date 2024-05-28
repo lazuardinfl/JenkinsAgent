@@ -4,8 +4,8 @@ using System.Text;
 
 namespace Bot.Helpers;
 
-public static class DataProtectionHelper
-{    
+public static class CryptographyHelper
+{
     public static string? Base64Encode(string? text) 
     {
         try
@@ -32,7 +32,7 @@ public static class DataProtectionHelper
         }
     }
 
-    public static string? EncryptDataAsText(string? data, string? entropy, bool isUserScope = true)
+    public static string? EncryptWithDPAPI(string? data, string? entropy, bool isUserScope = true)
     {
         try
         {
@@ -47,7 +47,7 @@ public static class DataProtectionHelper
         }
     }
 
-    public static string? DecryptDataAsText(string? data, string? entropy, bool isUserScope = true)
+    public static string? DecryptWithDPAPI(string? data, string? entropy, bool isUserScope = true)
     {
         try
         {

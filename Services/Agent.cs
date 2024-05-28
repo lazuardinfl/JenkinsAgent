@@ -1,29 +1,23 @@
-using Bot.Helpers;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace Bot.Services;
 
-public class Agent(ILogger<Agent> logger, Config config, Jenkins jenkins, ScreenSaver screenSaver)
+public class Agent(Config config, Jenkins jenkins, AutoStartup autoStartup, ScreenSaver screenSaver)
 {
     public static readonly ManualResetEvent Mre = new(false);
 
     public async void Initialize()
     {
         SetEnvironmentVariable();
-        bool isConfigValid = await config.Reload(true);
-        if (TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) == null)
+        if (await config.Reload())
         {
-            TaskSchedulerHelper.Create(config.Server.TaskSchedulerName, App.Title, App.BaseDir, true);
+            autoStartup.Initialize();
+            screenSaver.Initialize();
+            await jenkins.Connect((App.Lifetime().Args ?? []).Contains("startup"));
         }
         Mre.Set();
-        await Task.Run(App.Mre.WaitOne);
-        bool atStartup = (App.Lifetime().Args ?? []).Contains("startup");
-        if (!(isConfigValid && await jenkins.ReloadConnection(atStartup))) { logger.LogError("Initialize failed"); }
-        screenSaver.Initialize();
     }
 
     private static void SetEnvironmentVariable()

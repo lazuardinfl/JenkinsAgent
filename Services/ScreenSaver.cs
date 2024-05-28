@@ -1,5 +1,4 @@
 using Bot.Helpers;
-using Bot.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.JsonWebTokens;
 using System;
@@ -13,12 +12,15 @@ using System.Timers;
 
 namespace Bot.Services;
 
+public enum ExtensionStatus { Valid, Invalid, Expired }
+
 public class ScreenSaver
 {
     private readonly ILogger logger;
     private readonly IHttpClientFactory httpClientFactory;
     private readonly Config config;
     private readonly Timer timer = new(50000);
+    private DateTime lastUpdate = DateTime.Now;
     private DateTime? preventLockExpiredDate = null;
     private ExtensionStatus preventLockStatus = ExtensionStatus.Invalid;
 
@@ -27,7 +29,7 @@ public class ScreenSaver
         this.logger = logger;
         this.httpClientFactory = httpClientFactory;
         this.config = config;
-        config.Changed += OnConfigChanged;
+        config.Reloaded += OnConfigReloaded;
         timer.Elapsed += OnTimedEvent;
     }
 
@@ -95,45 +97,51 @@ public class ScreenSaver
 
     private async Task<DateTime?> GetPreventLockExpiredDate()
     {
-        Dictionary<string, string?> content = new()
+        if (config.IsValid)
         {
-            { "client_id", config.Server.ExtensionAuthId },
-            { "client_secret", config.Server.ExtensionAuthSecret },
-            { "grant_type", "password" },
-            { "username", config.Client.BotId },
-            { "password", DataProtectionHelper.DecryptDataAsText(config.Client.BotToken, DataProtectionHelper.Base64Encode(config.Client.BotId)) }
-        };
-        try
-        {
-            using (HttpClient httpClient = httpClientFactory.CreateClient())
+            Dictionary<string, string?> content = new()
             {
-                using (HttpResponseMessage response = await httpClient.PostAsync(Helper.CreateUrl(config.Client.OrchestratorUrl, config.Server.ExtensionAuthUrl), new FormUrlEncodedContent(content)))
+                { "client_id", config.Server.ExtensionAuthId },
+                { "client_secret", config.Server.ExtensionAuthSecret },
+                { "grant_type", "password" },
+                { "username", config.Client.BotId },
+                { "password", CryptographyHelper.DecryptWithDPAPI(config.Client.BotToken, CryptographyHelper.Base64Encode(config.Client.BotId)) }
+            };
+            try
+            {
+                using (HttpClient httpClient = httpClientFactory.CreateClient())
                 {
-                    JsonNode jsonResponse = JsonNode.Parse(await response.Content.ReadAsStringAsync())!;
-                    JsonWebToken token = new(jsonResponse["access_token"]?.GetValue<string>());
-                    string[] info = token.GetPayloadValue<string[]>("info");
-                    foreach (var extension in info)
+                    using (HttpResponseMessage response = await httpClient.PostAsync(Helper.CreateUrl(config.Client.OrchestratorUrl, config.Server.ExtensionAuthUrl), new FormUrlEncodedContent(content)))
                     {
-                        if (extension.Contains("PreventLock"))
+                        JsonNode jsonResponse = JsonNode.Parse(await response.Content.ReadAsStringAsync())!;
+                        JsonWebToken token = new(jsonResponse["access_token"]?.GetValue<string>());
+                        string[] info = token.GetPayloadValue<string[]>("info");
+                        foreach (var extension in info)
                         {
-                            return DateTime.ParseExact(extension.Split('@')[1], "yyyyMMdd", CultureInfo.InvariantCulture).Add(new TimeSpan(23, 59, 59));
+                            if (extension.Contains("PreventLock"))
+                            {
+                                return DateTime.ParseExact(extension.Split('@')[1], "yyyyMMdd", CultureInfo.InvariantCulture).Add(new TimeSpan(23, 59, 59));
+                            }
                         }
                     }
                 }
             }
-            return null;
+            catch (Exception e)
+            {
+                logger.LogError(e, "{msg}", e.Message);
+                return null;
+            }
         }
-        catch (Exception e)
-        {
-            logger.LogError(e, "{msg}", e.Message);
-            return null;
-        }
+        return null;
     }
 
-    private void OnConfigChanged(object? sender, EventArgs e) => Initialize();
-
-    private void OnTimedEvent(object? sender, ElapsedEventArgs e)
+    private async void OnTimedEvent(object? sender, ElapsedEventArgs e)
     {
+        if (DateTime.Now.Subtract(lastUpdate).TotalHours >= 24)
+        {
+            lastUpdate = DateTime.Now;
+            preventLockExpiredDate = await GetPreventLockExpiredDate();
+        }
         preventLockStatus = GetPreventLockStatus(preventLockExpiredDate);
         switch (preventLockStatus)
         {
@@ -144,6 +152,12 @@ public class ScreenSaver
                 ReloadPreventLock();
                 break;
         }
+    }
+
+    private void OnConfigReloaded(object? sender, EventArgs e)
+    {
+        lastUpdate = DateTime.Now;
+        Initialize();
     }
 
     private void ResetLockScreenTimer()

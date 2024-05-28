@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Security.Principal;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -15,6 +17,27 @@ public static partial class Helper
     public static string? GetAppDescription() => Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyTitleAttribute>()?.Title;
 
     public static Version? GetAppVersion() => Assembly.GetExecutingAssembly().GetName().Version;
+
+    public static string GetAppHash()
+    {
+        using (SHA256 sha256 = SHA256.Create())
+        {
+            using (FileStream file = File.OpenRead(Environment.ProcessPath ?? Assembly.GetExecutingAssembly().Location))
+            {
+                byte[] hash = sha256.ComputeHash(file);
+                return BitConverter.ToString(hash).Replace("-", string.Empty);
+            }
+        }
+    }
+
+    public static bool IsAppElevated()
+    {
+        using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+        {
+            WindowsPrincipal principal = new(identity);
+            return principal.IsInRole(WindowsBuiltInRole.Administrator);
+        }
+    }
 
     public static string GetBaseDir() => Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory);
 
