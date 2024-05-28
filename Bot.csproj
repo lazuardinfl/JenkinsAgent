@@ -8,7 +8,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\normal.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-    <Version>2.0.0</Version>
+    <Version>2.1.0</Version>
     <NoWarn>$(NoWarn);IDE0063;SYSLIB1054</NoWarn>
     <!-- <AssemblyName>AppFileName</AssemblyName> -->
     <!-- <AssemblyTitle>App File Description</AssemblyTitle> -->

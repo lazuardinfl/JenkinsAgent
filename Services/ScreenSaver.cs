@@ -104,7 +104,7 @@ public class ScreenSaver
                 { "client_secret", config.Server.ExtensionAuthSecret },
                 { "grant_type", "password" },
                 { "username", config.Client.BotId },
-                { "password", DataProtectionHelper.DecryptDataAsText(config.Client.BotToken, DataProtectionHelper.Base64Encode(config.Client.BotId)) }
+                { "password", CryptographyHelper.DecryptWithDPAPI(config.Client.BotToken, CryptographyHelper.Base64Encode(config.Client.BotId)) }
             };
             try
             {

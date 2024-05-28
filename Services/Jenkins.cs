@@ -241,7 +241,7 @@ public class Jenkins
         foreach (Match match in matches.Cast<Match>())
         {
             arguments = arguments.Replace(match.Groups[0].Value, match.Groups[1].Value == "BotToken" ?
-                DataProtectionHelper.DecryptDataAsText(config.Client.BotToken, DataProtectionHelper.Base64Encode(config.Client.BotId)) :
+                CryptographyHelper.DecryptWithDPAPI(config.Client.BotToken, CryptographyHelper.Base64Encode(config.Client.BotId)) :
                 Helper.GetProperty<string, ClientConfig>(config.Client, match.Groups[1].Value)
             );
         }

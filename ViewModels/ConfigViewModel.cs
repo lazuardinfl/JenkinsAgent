@@ -54,7 +54,7 @@ public partial class ConfigViewModel : PageViewModelBase
             if (config.Client.BotToken != BotToken)
             {
                 BotToken = Helper.RemoveWhitespaces(BotToken ?? "");
-                BotToken = DataProtectionHelper.EncryptDataAsText(BotToken, DataProtectionHelper.Base64Encode(BotId));
+                BotToken = CryptographyHelper.EncryptWithDPAPI(BotToken, CryptographyHelper.Base64Encode(BotId));
                 config.Client.BotToken = BotToken;
             }
             Hide();
