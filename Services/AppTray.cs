@@ -1,5 +1,4 @@
 using Bot.Helpers;
-using Bot.Models;
 using Bot.ViewModels;
 using Microsoft.Extensions.Logging;
 using System;
@@ -8,6 +7,8 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Bot.Services;
+
+public enum BotIcon { Normal, Offline }
 
 public class AppTray
 {

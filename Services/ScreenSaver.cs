@@ -1,5 +1,4 @@
 using Bot.Helpers;
-using Bot.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.JsonWebTokens;
 using System;
@@ -12,6 +11,8 @@ using System.Threading.Tasks;
 using System.Timers;
 
 namespace Bot.Services;
+
+public enum ExtensionStatus { Valid, Invalid, Expired }
 
 public class ScreenSaver
 {

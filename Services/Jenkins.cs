@@ -14,6 +14,8 @@ using System.Threading.Tasks;
 
 namespace Bot.Services;
 
+public enum ConnectionStatus { Connected, Disconnected, Initialize, Retry, Interrupted, Unknown }
+
 public class Jenkins
 {
     private readonly ManualResetEvent mre = new(false);
