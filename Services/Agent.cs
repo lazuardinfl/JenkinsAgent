@@ -4,7 +4,7 @@ using System.Threading;
 
 namespace Bot.Services;
 
-public class Agent(Config config, Jenkins jenkins, ScreenSaver screenSaver)
+public class Agent(Config config, Jenkins jenkins, AutoStartup autoStartup, ScreenSaver screenSaver)
 {
     public static readonly ManualResetEvent Mre = new(false);
 
@@ -13,6 +13,7 @@ public class Agent(Config config, Jenkins jenkins, ScreenSaver screenSaver)
         SetEnvironmentVariable();
         if (await config.Reload())
         {
+            autoStartup.Initialize();
             screenSaver.Initialize();
             await jenkins.Connect((App.Lifetime().Args ?? []).Contains("startup"));
         }

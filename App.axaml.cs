@@ -49,6 +49,7 @@ public partial class App : Application
         });
         builder.Services.AddHttpClient();
         builder.Services.AddSingleton<Config>();
+        builder.Services.AddSingleton<AutoStartup>();
         builder.Services.AddSingleton<ScreenSaver>();
         builder.Services.AddSingleton<Jenkins>();
         builder.Services.AddSingleton<Agent>();

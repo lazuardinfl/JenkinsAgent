@@ -14,6 +14,7 @@ public class AppTray
     private readonly ILogger logger;
     private readonly Config config;
     private readonly Jenkins jenkins;
+    private readonly AutoStartup autoStartup;
     private readonly ScreenSaver screenSaver;
     private readonly Dictionary<BotIcon, string> icons;
     private readonly ToolStripMenuItem testMenuItem;
@@ -27,11 +28,12 @@ public class AppTray
     private readonly NotifyIcon tray;
     private Action<Page> showMainWindow = null!;
 
-    public AppTray(ILogger<AppTray> logger, Config config, Jenkins jenkins, ScreenSaver screenSaver)
+    public AppTray(ILogger<AppTray> logger, Config config, Jenkins jenkins, AutoStartup autoStartup, ScreenSaver screenSaver)
     {
         this.logger = logger;
         this.config = config;
         this.jenkins = jenkins;
+        this.autoStartup = autoStartup;
         this.screenSaver = screenSaver;
         icons = new() {
             { BotIcon.Normal, $"{App.BaseDir}/resources/normal.ico" },
@@ -67,16 +69,16 @@ public class AppTray
         };
         config.Reloaded += OnConfigReloaded;
         jenkins.ConnectionChanged += OnConnectionChanged;
+        autoStartup.Changed += OnAutoStartupChanged;
         screenSaver.PreventLockStatusChanged += OnPreventLockStatusChanged;
     }
 
     public async void Initialize()
     {
-        contextMenu.Enabled = false;
-        //testMenuItem.Available = false;
-        startupMenuItem.Available = false;
+        testMenuItem.Available = false;
         preventlockMenuItem.Enabled = false;
         screensaverSubMenu.Available = false;
+        contextMenu.Enabled = false;
         tray.Visible = true;
         await Task.Run(() => {
             App.Mre.WaitOne();
@@ -109,18 +111,18 @@ public class AppTray
     {
         contextMenu.Enabled = false;
         string msg = $"Are you sure to {(startupMenuItem.Checked ? "disable" : "enable")} auto startup?";
-        if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Startup", msg))
+        if ((DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Startup", msg)) && !autoStartup.Enable(!startupMenuItem.Checked))
         {
-            if (TaskSchedulerHelper.Enable(config.Server.TaskSchedulerName, !startupMenuItem.Checked))
-            {
-                startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
-            }
-            else
-            {
-                MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.AdminRequired));
-            }
+            MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.AdminRequired));
         }
         contextMenu.Enabled = true;
+    }
+
+    private void OnAutoStartupChanged(object? sender, EventArgs e)
+    {
+        App.GetUIThread().Post(() => {
+            startupMenuItem.Checked = autoStartup.Enabled;
+        });
     }
 
     private async void PreventLock()
@@ -211,27 +213,20 @@ public class AppTray
     private void OnConnectionChanged(object? sender, JenkinsEventArgs e)
     {
         App.GetUIThread().Post(() => {
-            try
+            switch (e.Status)
             {
-                switch (e.Status)
-                {
-                    case ConnectionStatus.Initialize or ConnectionStatus.Interrupted:
-                        configSubMenu.Available = false;
-                        connectionSubMenu.Available = false;
-                        break;
-                    case ConnectionStatus.Connected or ConnectionStatus.Retry or ConnectionStatus.Disconnected:
-                        configSubMenu.Available = true;
-                        connectionSubMenu.Available = true;
-                        connectMenuItem.Text = e.Status == ConnectionStatus.Disconnected ? "Connect" : "Disconnect";
-                        break;
-                }
-                tray.Text = CreateDescription();
-                tray.Icon = new(icons[e.Icon]);
+                case ConnectionStatus.Initialize or ConnectionStatus.Interrupted:
+                    configSubMenu.Available = false;
+                    connectionSubMenu.Available = false;
+                    break;
+                case ConnectionStatus.Connected or ConnectionStatus.Retry or ConnectionStatus.Disconnected:
+                    configSubMenu.Available = true;
+                    connectionSubMenu.Available = true;
+                    connectMenuItem.Text = e.Status == ConnectionStatus.Disconnected ? "Connect" : "Disconnect";
+                    break;
             }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "{msg}", ex.Message);
-            }
+            tray.Text = CreateDescription();
+            tray.Icon = new(icons[e.Icon]);
         });
     }
 
@@ -253,7 +248,6 @@ public class AppTray
         if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Reset", msg))
         {
             await config.Reset();
-            reconnectMenuItem.Checked = config.Client.IsAutoReconnect;
         }
         contextMenu.Enabled = true;
     }
@@ -261,9 +255,12 @@ public class AppTray
     private void OnConfigReloaded(object? sender, EventArgs e)
     {
         App.GetUIThread().Post(() => {
-            tray.Text = CreateDescription();
-            TaskSchedulerHelper.Create(config.Server.TaskSchedulerName, App.Title, App.BaseDir, true);
-            startupMenuItem.Checked = TaskSchedulerHelper.GetStatus(config.Server.TaskSchedulerName) ?? false;
+            if (!config.IsValid)
+            {
+                tray.Text = CreateDescription();
+                preventlockMenuItem.Checked = config.Client.IsPreventLock;
+                reconnectMenuItem.Checked = config.Client.IsAutoReconnect;
+            }
         });
     }
 
@@ -274,6 +271,7 @@ public class AppTray
         {
             config.Reloaded -= OnConfigReloaded;
             jenkins.ConnectionChanged -= OnConnectionChanged;
+            autoStartup.Changed -= OnAutoStartupChanged;
             screenSaver.PreventLockStatusChanged -= OnPreventLockStatusChanged;
             jenkins.Disconnect();
             tray.Visible = false;

@@ -16,7 +16,7 @@ namespace Bot.Services;
 
 public class Jenkins
 {
-    private static readonly ManualResetEvent mre = new(false);
+    private readonly ManualResetEvent mre = new(false);
     private readonly ILogger logger;
     private readonly IHttpClientFactory httpClientFactory;
     private readonly Config config;
