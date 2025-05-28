@@ -4,7 +4,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 
 namespace Bot.ViewModels;
 
@@ -32,7 +31,7 @@ public partial class ConfigViewModel : PageViewModelBase
     {
         await Task.Run(Agent.Mre.WaitOne);
         SetValueOnUI();
-    } 
+    }
 
     private void SetValueOnUI()
     {
@@ -46,7 +45,7 @@ public partial class ConfigViewModel : PageViewModelBase
     [RelayCommand]
     private async Task Apply()
     {
-        if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Save Config", "Are you sure to apply bot config?"))
+        if (MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Save Config", "Are you sure to apply bot config?"))
         {
             OrchestratorUrl = Helper.CreateUrl(OrchestratorUrl);
             config.Client.OrchestratorUrl = OrchestratorUrl;

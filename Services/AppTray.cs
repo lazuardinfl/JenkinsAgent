@@ -112,7 +112,7 @@ public class AppTray
     {
         contextMenu.Enabled = false;
         string msg = $"Are you sure to {(startupMenuItem.Checked ? "disable" : "enable")} auto startup?";
-        if ((DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Startup", msg)) && !autoStartup.Enable(!startupMenuItem.Checked))
+        if ((MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Startup", msg)) && !autoStartup.Enable(!startupMenuItem.Checked))
         {
             MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.AdminRequired));
         }
@@ -130,7 +130,7 @@ public class AppTray
     {
         contextMenu.Enabled = false;
         string msg = $"Are you sure to {(config.Client.IsPreventLock ? "disable" : "enable")} prevent lock?";
-        if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Prevent Lock", msg))
+        if (MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Prevent Lock", msg))
         {
             config.Client.IsPreventLock = !config.Client.IsPreventLock;
             preventlockMenuItem.Checked = config.Client.IsPreventLock;
@@ -170,13 +170,13 @@ public class AppTray
         {
             case ConnectionStatus.Connected or ConnectionStatus.Retry:
                 msg = "Are you sure to disconnect from the server?";
-                if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Disconnect", msg)) {
+                if (MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Disconnect", msg)) {
                     jenkins.Disconnect();
                 }
                 break;
             case ConnectionStatus.Disconnected:
                 msg = "Are you sure to connect to the server?";
-                if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Connect", msg)) {
+                if (MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Connect", msg)) {
                     await jenkins.Connect();
                 }
                 break;
@@ -188,7 +188,7 @@ public class AppTray
     {
         contextMenu.Enabled = false;
         string msg = $"Are you sure to {(config.Client.IsAutoReconnect ? "disable" : "enable")} auto reconnect?";
-        if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Reconnect", msg))
+        if (MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Reconnect", msg))
         {
             switch (jenkins.Status, config.Client.IsAutoReconnect)
             {
@@ -235,7 +235,7 @@ public class AppTray
     {
         contextMenu.Enabled = false;
         string msg = "Are you sure to reload config?\nConnection will be reset";
-        if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Reload", msg))
+        if (MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Reload", msg))
         {
             await config.Reload(true);
         }
@@ -246,7 +246,7 @@ public class AppTray
     {
         contextMenu.Enabled = false;
         string msg = "Are you sure to reset config?\nYour current config will be deleted";
-        if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Reset", msg))
+        if (MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Reset", msg))
         {
             await config.Reset();
         }
@@ -268,7 +268,7 @@ public class AppTray
     private async void Exit()
     {
         contextMenu.Enabled = false;
-        if (DialogResult.OK == await MessageBoxHelper.ShowQuestionOkCancelAsync("Exit", "Are you sure to exit application?"))
+        if (MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Exit", "Are you sure to exit application?"))
         {
             config.Reloaded -= OnConfigReloaded;
             jenkins.ConnectionChanged -= OnConnectionChanged;
