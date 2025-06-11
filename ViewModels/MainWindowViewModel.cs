@@ -1,4 +1,6 @@
-﻿using Avalonia.Controls;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Bot.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections.Generic;
@@ -15,10 +17,11 @@ public partial class MainWindowViewModel : ViewModelBase
     private PageViewModelBase currentPage;
 
     [ObservableProperty]
-    private string? name = App.Description;
+    private string name;
 
     public MainWindowViewModel(Config config)
     {
+        name = App.Description;
         pages = new()
         {
             { Page.Config, new ConfigViewModel(config) },
@@ -27,14 +30,20 @@ public partial class MainWindowViewModel : ViewModelBase
         currentPage = pages[Page.Config];
     }
 
+    public void Initialize() => ((ConfigViewModel)pages[Page.Config]).Initialize();
+
     public void Show(Page page)
     {
         CurrentPage = pages[page];
-        App.GetUIThread().Post(() => {
-            App.Lifetime().MainWindow!.WindowState = WindowState.Normal;
-            App.Lifetime().MainWindow!.Show();
-            App.Lifetime().MainWindow!.BringIntoView();
-            App.Lifetime().MainWindow!.Focus();
-        });
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            if (desktop.MainWindow is Window window)
+            {
+                window.WindowState = WindowState.Normal;
+                window.Show();
+                window.BringIntoView();
+                window.Focus();
+            }
+        }
     }
 }

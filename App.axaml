@@ -1,15 +1,50 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="Bot.App"
+             xmlns:vm="using:Bot.ViewModels"
              xmlns:local="using:Bot"
+             x:Class="Bot.App"
+             x:DataType="vm:ApplicationViewModel"
              RequestedThemeVariant="Default">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
     <Application.DataTemplates>
         <local:ViewLocator/>
     </Application.DataTemplates>
-  
+
     <Application.Styles>
         <FluentTheme />
     </Application.Styles>
+
+    <TrayIcon.Icons>
+        <TrayIcons>
+            <TrayIcon Icon="{Binding Icon}" ToolTipText="{Binding ToolTipText}" IsVisible="{Binding IsVisible, Mode=TwoWay}">
+                <TrayIcon.Menu>
+                    <NativeMenu>
+                        <NativeMenuItem Header="Auto Startup" ToggleType="CheckBox" IsChecked="{Binding StartupMenu.IsChecked, Mode=TwoWay}" IsVisible="{Binding StartupMenu.IsVisible, Mode=TwoWay}" IsEnabled="{Binding StartupMenu.IsEnabled}" Command="{Binding StartupMenu.AsyncInvokeCommand}" />
+                        <NativeMenuItem Header="Screensaver" IsVisible="{Binding ScreensaverSubMenu.IsVisible, Mode=TwoWay}" IsEnabled="{Binding ScreensaverSubMenu.IsEnabled, Mode=TwoWay}">
+                            <NativeMenu>
+                                <NativeMenuItem Header="Prevent Screen Locked" ToggleType="CheckBox" IsChecked="{Binding PreventLockMenu.IsChecked, Mode=TwoWay}" IsVisible="{Binding PreventLockMenu.IsVisible, Mode=TwoWay}" IsEnabled="{Binding PreventLockMenu.IsEnabled}" Command="{Binding PreventLockMenu.AsyncInvokeCommand}" />
+                                <NativeMenuItem Header="{Binding ExpiredMenu.Header}" />
+                            </NativeMenu>
+                        </NativeMenuItem>
+                        <NativeMenuItem Header="Connection" IsVisible="{Binding ConnectionSubMenu.IsVisible, Mode=TwoWay}" IsEnabled="{Binding ConnectionSubMenu.IsEnabled, Mode=TwoWay}">
+                            <NativeMenu>
+                                <NativeMenuItem Header="Auto Reconnect" ToggleType="CheckBox" IsChecked="{Binding ReconnectMenu.IsChecked, Mode=TwoWay}" IsVisible="{Binding ReconnectMenu.IsVisible, Mode=TwoWay}" IsEnabled="{Binding ReconnectMenu.IsEnabled}" Command="{Binding ReconnectMenu.AsyncInvokeCommand}" />
+                                <NativeMenuItem Header="{Binding ConnectMenu.Header}" IsVisible="{Binding ConnectMenu.IsVisible, Mode=TwoWay}" IsEnabled="{Binding ConnectMenu.IsEnabled}" Command="{Binding ConnectMenu.AsyncInvokeCommand}" />
+                            </NativeMenu>
+                        </NativeMenuItem>
+                        <NativeMenuItem Header="Configuration" IsVisible="{Binding ConfigSubMenu.IsVisible, Mode=TwoWay}" IsEnabled="{Binding ConfigSubMenu.IsEnabled, Mode=TwoWay}">
+                            <NativeMenu>
+                                <NativeMenuItem Header="Bot Config" Command="{Binding ShowMainWindow}" CommandParameter="{x:Static vm:Page.Config}" />
+                                <NativeMenuItem Header="Reload" IsVisible="{Binding ReloadMenu.IsVisible, Mode=TwoWay}" IsEnabled="{Binding ReloadMenu.IsEnabled}" Command="{Binding ReloadMenu.AsyncInvokeCommand}" />
+                                <NativeMenuItem Header="Reset" IsVisible="{Binding ResetMenu.IsVisible, Mode=TwoWay}" IsEnabled="{Binding ResetMenu.IsEnabled}" Command="{Binding ResetMenu.AsyncInvokeCommand}" />
+                            </NativeMenu>
+                        </NativeMenuItem>
+                        <NativeMenuItem Header="About" Command="{Binding ShowMainWindow}" CommandParameter="{x:Static vm:Page.About}" />
+                        <NativeMenuItem Header="Exit" IsEnabled="{Binding ExitMenu.IsEnabled}" Command="{Binding ExitMenu.AsyncInvokeCommand}" />
+                    </NativeMenu>
+                </TrayIcon.Menu>
+            </TrayIcon>
+        </TrayIcons>
+    </TrayIcon.Icons>
 </Application>

@@ -24,10 +24,9 @@ public partial class ConfigViewModel : PageViewModelBase
     {
         this.config = config;
         config.Reloaded += OnConfigReloaded;
-        Initialize();
     }
 
-    private async void Initialize()
+    public async void Initialize()
     {
         await Task.Run(Agent.Mre.WaitOne);
         SetValueOnUI();

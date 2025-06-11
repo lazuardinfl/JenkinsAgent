@@ -1,7 +1,7 @@
-using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Bot.ViewModels;
+using System;
 
 namespace Bot;
 
@@ -10,8 +10,10 @@ public class ViewLocator : IDataTemplate
     public Control? Build(object? data)
     {
         if (data is null)
+        {
             return null;
-        
+        }
+
         var name = data.GetType().FullName!.Replace("ViewModel", "View", StringComparison.Ordinal);
         var type = Type.GetType(name);
 
@@ -21,7 +23,7 @@ public class ViewLocator : IDataTemplate
             control.DataContext = data;
             return control;
         }
-        
+
         return new TextBlock { Text = "Not Found: " + name };
     }
 

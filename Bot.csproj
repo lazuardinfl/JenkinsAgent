@@ -1,15 +1,14 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\normal.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-    <Version>2.1.0</Version>
-    <NoWarn>$(NoWarn);IDE0063;SYSLIB1054</NoWarn>
+    <NoWarn>$(NoWarn);CA2101;IDE0063;SYSLIB1054</NoWarn>
+    <!-- <Version>1.2.3</Version> -->
     <!-- <AssemblyName>AppFileName</AssemblyName> -->
     <!-- <AssemblyTitle>App File Description</AssemblyTitle> -->
   </PropertyGroup>
@@ -24,17 +23,21 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.0.10" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.0.10" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.0.10" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.0.10" />
+    <PackageReference Include="Avalonia" Version="11.2.8" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.8" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.8" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.8" />
     <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
-    <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.0.10" />
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.2.8">
+      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="7.5.2" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
     <PackageReference Include="TaskScheduler" Version="2.11.0" />
   </ItemGroup>
 </Project>
