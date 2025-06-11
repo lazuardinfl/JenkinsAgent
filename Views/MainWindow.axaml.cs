@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Avalonia.Markup.Xaml;
 using System;
 
 namespace Bot.Views;
@@ -10,11 +9,6 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         InitializeEvent();
-    }
-
-    private void InitializeComponent()
-    {
-        AvaloniaXamlLoader.Load(this);
     }
 
     private void InitializeEvent()

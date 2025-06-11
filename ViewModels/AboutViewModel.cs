@@ -1,12 +1,8 @@
-using CommunityToolkit.Mvvm.ComponentModel;
-
 namespace Bot.ViewModels;
 
 public partial class AboutViewModel : PageViewModelBase
 {
-    [ObservableProperty]
-    private string? name = App.Description;
+    public string Name { get; } = App.Description;
 
-    [ObservableProperty]
-    private string? version = $"Version {App.Version?.Major}.{App.Version?.Minor}.{App.Version?.Build}";
+    public string Version { get; } = $"Version {App.Version?.Major}.{App.Version?.Minor}.{App.Version?.Build}";
 }
