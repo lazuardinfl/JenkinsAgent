@@ -88,8 +88,6 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    public static IClassicDesktopStyleApplicationLifetime Lifetime() => (IClassicDesktopStyleApplicationLifetime)Current!.ApplicationLifetime!;
-
     private void SingleInstance()
     {
         if (!mutex.WaitOne(0, false))

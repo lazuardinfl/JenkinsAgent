@@ -15,7 +15,7 @@ public class Agent(Config config, Jenkins jenkins, AutoStartup autoStartup, Scre
         {
             autoStartup.Initialize();
             screenSaver.Initialize();
-            await jenkins.Connect((App.Lifetime().Args ?? []).Contains("startup"));
+            await jenkins.Connect(Environment.GetCommandLineArgs().Contains("startup"));
         }
         Mre.Set();
     }
