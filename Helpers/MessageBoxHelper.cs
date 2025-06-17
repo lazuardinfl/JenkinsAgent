@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace Bot.Helpers;
 
-public enum MessageStatus { ConnectionFailed, AdminRequired, VersionIncompatible, UnexpectedError }
+public enum MessageStatus { ConnectionFailed, VersionIncompatible, UnexpectedError }
 
 public enum MessageBoxResult { None, Ok, Cancel, Abort, Retry, Ignore, Yes, No }
 
@@ -35,7 +35,6 @@ public static class MessageBoxHelper
     public static string GetMessage(MessageStatus status) => status switch
     {
         MessageStatus.ConnectionFailed => "Connection failed. Make sure connected\nto server and bot config is valid!",
-        MessageStatus.AdminRequired => "You need to run application as admin\nand make sure bot config is valid!",
         MessageStatus.VersionIncompatible => "Application need update to latest version!",
         MessageStatus.UnexpectedError => "Unexpected error. Contact admin for help!",
         _ => ""

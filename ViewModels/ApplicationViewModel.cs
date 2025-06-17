@@ -28,7 +28,9 @@ public partial class ApplicationViewModel : ViewModelBase
     [ObservableProperty]
     private bool isVisible;
 
+    public TrayMenu StartupSubMenu { get; }
     public TrayMenu StartupMenu { get; }
+    public TrayMenu StartupElevatedMenu { get; }
     public TrayMenu ScreensaverSubMenu { get; }
     public TrayMenu PreventLockMenu { get; }
     public TrayMenu ExpiredMenu { get; }
@@ -55,7 +57,9 @@ public partial class ApplicationViewModel : ViewModelBase
         icon = icons[BotIcon.Offline];
         toolTipText = "Please wait ...";
         isVisible = false;
-        StartupMenu = new("Auto Startup", AutoStartup, false);
+        StartupSubMenu = new("Auto Startup", false);
+        StartupMenu = new("Auto Start at Logon", AutoStartup);
+        StartupElevatedMenu = new("Auto Start as Admin", AutoStartupElevated);
         ScreensaverSubMenu = new("Screensaver", false);
         PreventLockMenu = new("Prevent Screen Locked", PreventLock);
         ExpiredMenu = new("Expired");
@@ -81,7 +85,7 @@ public partial class ApplicationViewModel : ViewModelBase
         PreventLockMenu.IsChecked = config.Client.IsPreventLock;
         ReconnectMenu.IsChecked = config.Client.IsAutoReconnect;
         ConnectMenu.IsEnabled = !ReconnectMenu.IsChecked;
-        StartupMenu.IsVisible = true;
+        StartupSubMenu.IsVisible = true;
         ConfigSubMenu.IsVisible = true;
     }
 
@@ -89,14 +93,26 @@ public partial class ApplicationViewModel : ViewModelBase
 
     private async Task AutoStartup()
     {
-        ConnectionSubMenu.IsEnabled = ConfigSubMenu.IsEnabled = false;
+        StartupSubMenu.IsEnabled = ConnectionSubMenu.IsEnabled = ConfigSubMenu.IsEnabled = false;
         StartupMenu.IsChecked = !StartupMenu.IsChecked;
-        string msg = $"Are you sure to {(StartupMenu.IsChecked ? "disable" : "enable")} auto startup?";
-        if ((MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Startup", msg)) && !autoStartup.Enable(!StartupMenu.IsChecked))
+        string msg = $"Are you sure to {(StartupMenu.IsChecked ? "disable" : "enable")} auto start at user logon?";
+        if ((MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Startup", msg)) && !await autoStartup.Enable(!StartupMenu.IsChecked))
         {
-            MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.AdminRequired));
+            MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.UnexpectedError));
         }
-        ConnectionSubMenu.IsEnabled = ConfigSubMenu.IsEnabled = true;
+        StartupSubMenu.IsEnabled = ConnectionSubMenu.IsEnabled = ConfigSubMenu.IsEnabled = true;
+    }
+
+    private async Task AutoStartupElevated()
+    {
+        StartupSubMenu.IsEnabled = ConnectionSubMenu.IsEnabled = ConfigSubMenu.IsEnabled = false;
+        StartupElevatedMenu.IsChecked = !StartupElevatedMenu.IsChecked;
+        string msg = $"Are you sure to {(StartupElevatedMenu.IsChecked ? "disable" : "enable")} auto start with admin privileges?";
+        if ((MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Startup", msg)) && !await autoStartup.Elevate(!StartupElevatedMenu.IsChecked))
+        {
+            MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.UnexpectedError));
+        }
+        StartupSubMenu.IsEnabled = ConnectionSubMenu.IsEnabled = ConfigSubMenu.IsEnabled = true;
     }
 
     private async Task PreventLock()
@@ -204,8 +220,9 @@ public partial class ApplicationViewModel : ViewModelBase
 
     private void OnAutoStartupChanged(object? sender, EventArgs e)
     {
-        StartupMenu.IsChecked = autoStartup.Enabled;
-        StartupMenu.IsVisible = true;
+        StartupMenu.IsChecked = autoStartup.IsEnabled;
+        StartupElevatedMenu.IsChecked = autoStartup.IsElevated;
+        StartupSubMenu.IsVisible = true;
     }
 
     private void OnPreventLockStatusChanged(object? sender, ScreenSaverEventArgs e)

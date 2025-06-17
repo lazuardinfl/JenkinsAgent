@@ -13,6 +13,7 @@ public sealed class ServerConfig
     public string? JavaVersion { get; set; }
     public int ConnectTimeout { get; set; }
     public int StartupConnectTimeout { get; set; }
+    public int TaskSchedulerDelay { get; set; }
     public string? TaskSchedulerName { get; set; }
     public string? ExtensionAuthUrl { get; set; }
     public string? ExtensionAuthId { get; set; }
@@ -24,6 +25,7 @@ public sealed class ServerConfig
     {
         ConnectTimeout = 10000;
         StartupConnectTimeout = 120000;
+        TaskSchedulerDelay = 60;
         ScreenSaverTimeout = 600;
         ScreenSaverTimerInterval = 50000;
     }
@@ -31,10 +33,10 @@ public sealed class ServerConfig
     [JsonConstructor]
     public ServerConfig(string? agentUrl, string? agentPath, string? agentVersion, string? javaUrl, string? javaPath, string? javaVersion,
                         string? agentArguments, string? taskSchedulerName, string? extensionAuthUrl, string? extensionAuthId, string? extensionAuthSecret,
-                        int connectTimeout = 10000, int startupConnectTimeout = 120000, int screenSaverTimeout = 600, int screenSaverTimerInterval = 50000)
+                        int connectTimeout = 10000, int startupConnectTimeout = 120000, int taskSchedulerDelay = 60, int screenSaverTimeout = 600, int screenSaverTimerInterval = 50000)
     {
-        (AgentUrl, AgentPath, AgentVersion, JavaUrl, JavaPath, JavaVersion) = (agentUrl, agentPath, agentVersion, javaUrl, javaPath, javaVersion);
-        (AgentArguments, TaskSchedulerName, ExtensionAuthUrl, ExtensionAuthId, ExtensionAuthSecret) = (agentArguments, taskSchedulerName, extensionAuthUrl, extensionAuthId, extensionAuthSecret);
-        (ConnectTimeout, StartupConnectTimeout, ScreenSaverTimeout, ScreenSaverTimerInterval) = (connectTimeout, startupConnectTimeout, screenSaverTimeout, screenSaverTimerInterval);
+        (AgentUrl, AgentPath, AgentVersion, AgentArguments, JavaUrl, JavaPath, JavaVersion) = (agentUrl, agentPath, agentVersion, agentArguments, javaUrl, javaPath, javaVersion);
+        (TaskSchedulerName, ExtensionAuthUrl, ExtensionAuthId, ExtensionAuthSecret) = (taskSchedulerName?.Replace("/", @"\"), extensionAuthUrl, extensionAuthId, extensionAuthSecret);
+        (ConnectTimeout, StartupConnectTimeout, TaskSchedulerDelay, ScreenSaverTimeout, ScreenSaverTimerInterval) = (connectTimeout, startupConnectTimeout, taskSchedulerDelay, screenSaverTimeout, screenSaverTimerInterval);
     }
 }

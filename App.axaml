@@ -20,7 +20,12 @@
             <TrayIcon Icon="{Binding Icon}" ToolTipText="{Binding ToolTipText}" IsVisible="{Binding IsVisible, Mode=TwoWay}">
                 <TrayIcon.Menu>
                     <NativeMenu>
-                        <NativeMenuItem Header="Auto Startup" ToggleType="CheckBox" IsChecked="{Binding StartupMenu.IsChecked, Mode=TwoWay}" IsVisible="{Binding StartupMenu.IsVisible, Mode=TwoWay}" IsEnabled="{Binding StartupMenu.IsEnabled}" Command="{Binding StartupMenu.AsyncInvokeCommand}" />
+                        <NativeMenuItem Header="Auto Startup" IsVisible="{Binding StartupSubMenu.IsVisible, Mode=TwoWay}" IsEnabled="{Binding StartupSubMenu.IsEnabled, Mode=TwoWay}">
+                            <NativeMenu>
+                                <NativeMenuItem Header="Auto Start at Logon" ToggleType="CheckBox" IsChecked="{Binding StartupMenu.IsChecked, Mode=TwoWay}" IsVisible="{Binding StartupMenu.IsVisible, Mode=TwoWay}" IsEnabled="{Binding StartupMenu.IsEnabled}" Command="{Binding StartupMenu.AsyncInvokeCommand}" />
+                                <NativeMenuItem Header="Auto Start as Admin" ToggleType="CheckBox" IsChecked="{Binding StartupElevatedMenu.IsChecked, Mode=TwoWay}" IsVisible="{Binding StartupElevatedMenu.IsVisible, Mode=TwoWay}" IsEnabled="{Binding StartupElevatedMenu.IsEnabled}" Command="{Binding StartupElevatedMenu.AsyncInvokeCommand}" />
+                            </NativeMenu>
+                        </NativeMenuItem>
                         <NativeMenuItem Header="Screensaver" IsVisible="{Binding ScreensaverSubMenu.IsVisible, Mode=TwoWay}" IsEnabled="{Binding ScreensaverSubMenu.IsEnabled, Mode=TwoWay}">
                             <NativeMenu>
                                 <NativeMenuItem Header="Prevent Screen Locked" ToggleType="CheckBox" IsChecked="{Binding PreventLockMenu.IsChecked, Mode=TwoWay}" IsVisible="{Binding PreventLockMenu.IsVisible, Mode=TwoWay}" IsEnabled="{Binding PreventLockMenu.IsEnabled}" Command="{Binding PreventLockMenu.AsyncInvokeCommand}" />
