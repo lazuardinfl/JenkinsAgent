@@ -6,7 +6,7 @@
              x:Class="Bot.Views.ConfigView"
              x:DataType="vm:ConfigViewModel"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             Width="500" Height="350">
+             Width="500" Height="380">
 
     <Grid RowDefinitions="*,Auto" Margin="10">
         <StackPanel Grid.Row="0" VerticalAlignment="Center" Spacing="10" MaxWidth="350">
@@ -33,6 +33,7 @@
                      Text="{Binding BotToken}"
                      Watermark="Bot Token"
                      UseFloatingWatermark="True" />
+            <CheckBox IsChecked="{Binding IsWindowsCertStoreUsed}" FontSize="16">Use Windows Trusted CA Store</CheckBox>
             <CheckBox IsChecked="{Binding IsUacDisabled}" FontSize="16">Disable UAC Elevation Prompt</CheckBox>
         </StackPanel>
 

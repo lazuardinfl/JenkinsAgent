@@ -12,18 +12,21 @@ public sealed class ClientConfig
     public bool IsAutoReconnect { get; set; }
     [JsonPropertyName("PreventLock")]
     public bool IsPreventLock { get; set; }
+    [JsonPropertyName("UseWindowsCertStore")]
+    public bool IsWindowsCertStoreUsed { get; set; }
 
     public ClientConfig()
     {
         SettingsUrl = App.DefaultConfigUrl;
         IsAutoReconnect = true;
+        IsWindowsCertStoreUsed = true;
     }
 
     [JsonConstructor]
     public ClientConfig(string? orchestratorUrl, string? botId, string? botToken, bool isPreventLock,
-                       string settingsUrl = App.DefaultConfigUrl, bool isAutoReconnect = true)
+                        string settingsUrl = App.DefaultConfigUrl, bool isAutoReconnect = true, bool isWindowsCertStoreUsed = true)
     {
         (OrchestratorUrl, BotId, BotToken, SettingsUrl) = (orchestratorUrl, botId, botToken, settingsUrl);
-        (IsAutoReconnect, IsPreventLock) = (isAutoReconnect, isPreventLock);
+        (IsAutoReconnect, IsPreventLock, IsWindowsCertStoreUsed) = (isAutoReconnect, isPreventLock, isWindowsCertStoreUsed);
     }
 }

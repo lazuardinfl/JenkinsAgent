@@ -23,6 +23,9 @@ public partial class ConfigViewModel : PageViewModelBase
     private string? botToken;
 
     [ObservableProperty]
+    private bool isWindowsCertStoreUsed;
+
+    [ObservableProperty]
     private bool isUacDisabled;
 
     public ConfigViewModel(Config config)
@@ -83,6 +86,7 @@ public partial class ConfigViewModel : PageViewModelBase
         OrchestratorUrl = config.Client.OrchestratorUrl;
         BotId = config.Client.BotId;
         BotToken = config.Client.BotToken;
+        IsWindowsCertStoreUsed = config.Client.IsWindowsCertStoreUsed;
         IsUacDisabled = UacRegistry == 0;
     }
 
@@ -97,6 +101,7 @@ public partial class ConfigViewModel : PageViewModelBase
             OrchestratorUrl = Helper.CreateUrl(OrchestratorUrl);
             config.Client.OrchestratorUrl = OrchestratorUrl;
             config.Client.BotId = BotId;
+            config.Client.IsWindowsCertStoreUsed = IsWindowsCertStoreUsed;
             if (config.Client.BotToken != BotToken)
             {
                 BotToken = Helper.RemoveWhitespaces(BotToken ?? "");
