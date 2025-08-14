@@ -184,7 +184,7 @@ public partial class ApplicationViewModel : ViewModelBase
         string msg = "Are you sure to reload config?\nConnection will be reset";
         if (MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Reload", msg))
         {
-            await config.Reload(true);
+            await config.Reload();
         }
         ConnectionSubMenu.IsEnabled = ConfigSubMenu.IsEnabled = true;
     }
@@ -245,9 +245,9 @@ public partial class ApplicationViewModel : ViewModelBase
         ExpiredMenu.Header = $"Expired: {e.PreventLockExpiredDate:d MMMM yyyy}";
     }
 
-    private void OnConnectionChanged(object? sender, JenkinsEventArgs e)
+    private void OnConnectionChanged(object? sender, EventArgs e)
     {
-        switch (e.Status)
+        switch (jenkins.Status)
         {
             case ConnectionStatus.Initialize or ConnectionStatus.Interrupted:
                 ConfigSubMenu.IsVisible = false;
@@ -256,11 +256,11 @@ public partial class ApplicationViewModel : ViewModelBase
             case ConnectionStatus.Connected or ConnectionStatus.Retry or ConnectionStatus.Disconnected:
                 ConfigSubMenu.IsVisible = true;
                 ConnectionSubMenu.IsVisible = true;
-                ConnectMenu.Header = e.Status == ConnectionStatus.Disconnected ? "Connect" : "Disconnect";
+                ConnectMenu.Header = jenkins.Status == ConnectionStatus.Disconnected ? "Connect" : "Disconnect";
                 break;
         }
         ToolTipText = CreateDescription();
-        Icon = icons[e.Icon];
+        Icon = icons[jenkins.Status == ConnectionStatus.Connected ? BotIcon.Normal : BotIcon.Offline];
     }
 
     private void OnConfigReloaded(object? sender, EventArgs e)

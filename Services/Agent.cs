@@ -11,7 +11,7 @@ public class Agent(Config config, Jenkins jenkins, AutoStartup autoStartup, Scre
     public async void Initialize()
     {
         SetEnvironmentVariable();
-        if (await config.Reload())
+        if (await config.Reload(false))
         {
             autoStartup.Initialize();
             screenSaver.Initialize();

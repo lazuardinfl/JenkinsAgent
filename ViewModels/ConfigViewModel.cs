@@ -108,7 +108,7 @@ public partial class ConfigViewModel : PageViewModelBase
                 IsUacDisabled = UacRegistry == 0;
             }
             await config.Save();
-            await config.Reload(true);
+            await config.Reload();
         }
     }
 

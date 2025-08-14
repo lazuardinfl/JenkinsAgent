@@ -44,22 +44,17 @@ public class Jenkins
         };
     }
 
-    public event EventHandler<JenkinsEventArgs>? ConnectionChanged;
+    public event EventHandler? ConnectionChanged;
 
     public ConnectionStatus Status
     {
-        get { return status; }
+        get => status;
         private set
         {
             if (status != value && status != ConnectionStatus.Unknown)
             {
                 status = value;
-                JenkinsEventArgs args = new()
-                {
-                    Status = value,
-                    Icon = value == ConnectionStatus.Connected ? BotIcon.Normal : BotIcon.Offline,
-                };
-                ConnectionChanged?.Invoke(this, args);
+                ConnectionChanged?.Invoke(this, EventArgs.Empty);
             }
         }
     }
@@ -268,7 +263,7 @@ public class Jenkins
                 break;
             case ConnectionStatus.Interrupted:
                 Status = ConnectionStatus.Interrupted;
-                if (!await config.Reload(true)) { Disconnect(); }
+                if (!await config.Reload()) { Disconnect(); }
                 break;
             case ConnectionStatus.Retry:
                 mre.Set();
@@ -308,10 +303,4 @@ public class Jenkins
             logger.LogError(ex, "{msg}", ex.Message);
         }
     }
-}
-
-public class JenkinsEventArgs : EventArgs
-{
-    public ConnectionStatus Status { get; set; }
-    public BotIcon Icon { get; set; }
 }

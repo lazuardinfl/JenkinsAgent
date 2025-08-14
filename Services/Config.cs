@@ -18,7 +18,7 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
 
     public event EventHandler? Reloaded;
 
-    public async Task<bool> Reload(bool raiseEvent = false)
+    public async Task<bool> Reload(bool raiseEvent = true)
     {
         Directory.CreateDirectory(App.ProfileDir);
         try
