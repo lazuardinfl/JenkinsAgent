@@ -52,6 +52,7 @@ public class AutoStartup
 
     public async void Initialize()
     {
+        config.Server.TaskSchedulerName = config.Server.TaskSchedulerName?.Replace("/", @"\");
         IsEnabled = IsElevated = false;
         using (Microsoft.Win32.TaskScheduler.Task task = TaskService.Instance.GetTask(config.Server.TaskSchedulerName))
         {

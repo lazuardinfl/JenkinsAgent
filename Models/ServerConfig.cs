@@ -1,42 +1,21 @@
-using System.Text.Json.Serialization;
-
 namespace Bot.Models;
 
 public sealed class ServerConfig
 {
-    public string? AgentUrl { get; set; }
-    public string? AgentPath { get; set; }
-    public string? AgentVersion { get; set; }
-    public string? AgentArguments { get; set; }
-    public string? JavaUrl { get; set; }
-    public string? JavaPath { get; set; }
-    public string? JavaVersion { get; set; }
-    public int ConnectTimeout { get; set; }
-    public int StartupConnectTimeout { get; set; }
-    public int TaskSchedulerDelay { get; set; }
+    public string AgentUrl { get; set; } = "jnlpJars/agent.jar";
+    public string AgentPath { get; set; } = "agent.jar";
+    public string AgentVersion { get; set; } = "3301.v4363ddcca_4e7";
+    public string AgentArguments { get; set; } = "-url <OrchestratorUrl> -name \"<BotId>\" -secret <BotToken> -webSocket";
+    public string JavaUrl { get; set; } = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.7%2B6/OpenJDK21U-jre_x64_windows_hotspot_21.0.7_6.zip";
+    public string JavaPath { get; set; } = "jre/bin";
+    public string JavaVersion { get; set; } = "21.0.7.0";
+    public int ConnectTimeout { get; set; } = 10000;
+    public int StartupConnectTimeout { get; set; } = 120000;
+    public int TaskSchedulerDelay { get; set; } = 60;
     public string? TaskSchedulerName { get; set; }
     public string? ExtensionAuthUrl { get; set; }
     public string? ExtensionAuthId { get; set; }
     public string? ExtensionAuthSecret { get; set; }
-    public int ScreenSaverTimeout { get; set; }
-    public int ScreenSaverTimerInterval { get; set; }
-
-    public ServerConfig()
-    {
-        ConnectTimeout = 10000;
-        StartupConnectTimeout = 120000;
-        TaskSchedulerDelay = 60;
-        ScreenSaverTimeout = 600;
-        ScreenSaverTimerInterval = 50000;
-    }
-
-    [JsonConstructor]
-    public ServerConfig(string? agentUrl, string? agentPath, string? agentVersion, string? javaUrl, string? javaPath, string? javaVersion,
-                        string? agentArguments, string? taskSchedulerName, string? extensionAuthUrl, string? extensionAuthId, string? extensionAuthSecret,
-                        int connectTimeout = 10000, int startupConnectTimeout = 120000, int taskSchedulerDelay = 60, int screenSaverTimeout = 600, int screenSaverTimerInterval = 50000)
-    {
-        (AgentUrl, AgentPath, AgentVersion, AgentArguments, JavaUrl, JavaPath, JavaVersion) = (agentUrl, agentPath, agentVersion, agentArguments, javaUrl, javaPath, javaVersion);
-        (TaskSchedulerName, ExtensionAuthUrl, ExtensionAuthId, ExtensionAuthSecret) = (taskSchedulerName?.Replace("/", @"\"), extensionAuthUrl, extensionAuthId, extensionAuthSecret);
-        (ConnectTimeout, StartupConnectTimeout, TaskSchedulerDelay, ScreenSaverTimeout, ScreenSaverTimerInterval) = (connectTimeout, startupConnectTimeout, taskSchedulerDelay, screenSaverTimeout, screenSaverTimerInterval);
-    }
+    public int ScreenSaverTimeout { get; set; } = 600;
+    public int ScreenSaverTimerInterval { get; set; } = 50000;
 }

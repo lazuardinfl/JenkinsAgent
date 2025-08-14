@@ -12,11 +12,11 @@ namespace Bot.Services;
 
 public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory)
 {
-    public event EventHandler? Reloaded;
-
     public bool IsValid { get; private set; } = false;
-    public ClientConfig Client { get; set; } = new();
-    public ServerConfig Server { get; set; } = new();
+    public ClientConfig Client { get; private set; } = new();
+    public ServerConfig Server { get; private set; } = new();
+
+    public event EventHandler? Reloaded;
 
     public async Task<bool> Reload(bool raiseEvent = false)
     {

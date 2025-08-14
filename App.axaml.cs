@@ -18,7 +18,6 @@ namespace Bot;
 
 public partial class App : Application
 {
-    public const string DefaultConfigUrl = "public/config/bot.json";
     public static readonly string Title = Helper.GetAppTitle() ?? "Bot";
     public static readonly string Description = Helper.GetAppDescription() ?? "Bot Agent";
     public static readonly Version? Version = Helper.GetAppVersion();
