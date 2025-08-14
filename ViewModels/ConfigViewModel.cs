@@ -14,19 +14,10 @@ public partial class ConfigViewModel : PageViewModelBase
     private readonly Config config;
 
     [ObservableProperty]
-    private string? orchestratorUrl;
+    private string? orchestratorUrl, settingsUrl, botId, botToken;
 
     [ObservableProperty]
-    private string? botId;
-
-    [ObservableProperty]
-    private string? botToken;
-
-    [ObservableProperty]
-    private bool isWindowsCertStoreUsed;
-
-    [ObservableProperty]
-    private bool isUacDisabled;
+    private bool isWindowsCertStoreUsed, isUacDisabled;
 
     public ConfigViewModel(Config config)
     {
@@ -84,6 +75,7 @@ public partial class ConfigViewModel : PageViewModelBase
     private void SetValueOnUI()
     {
         OrchestratorUrl = config.Client.OrchestratorUrl;
+        SettingsUrl = config.Client.SettingsUrl;
         BotId = config.Client.BotId;
         BotToken = config.Client.BotToken;
         IsWindowsCertStoreUsed = config.Client.IsWindowsCertStoreUsed;
@@ -100,6 +92,7 @@ public partial class ConfigViewModel : PageViewModelBase
             Hide();
             OrchestratorUrl = Helper.CreateUrl(OrchestratorUrl);
             config.Client.OrchestratorUrl = OrchestratorUrl;
+            config.Client.SettingsUrl = SettingsUrl;
             config.Client.BotId = BotId;
             config.Client.IsWindowsCertStoreUsed = IsWindowsCertStoreUsed;
             if (config.Client.BotToken != BotToken)

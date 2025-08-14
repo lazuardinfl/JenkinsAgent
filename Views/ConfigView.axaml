@@ -6,7 +6,7 @@
              x:Class="Bot.Views.ConfigView"
              x:DataType="vm:ConfigViewModel"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             Width="500" Height="380">
+             Width="500" Height="430">
 
     <Grid RowDefinitions="*,Auto" Margin="10">
         <StackPanel Grid.Row="0" VerticalAlignment="Center" Spacing="10" MaxWidth="350">
@@ -22,6 +22,11 @@
                      Watermark="Orchestrator URL"
                      UseFloatingWatermark="True"
                      ToolTip.Tip="e.g. https://orchestrator.domain.com" />
+            <TextBox VerticalAlignment="Center"
+                     FontSize="16"
+                     Text="{Binding SettingsUrl}"
+                     Watermark="Settings URL"
+                     UseFloatingWatermark="True" />
             <TextBox VerticalAlignment="Center"
                      FontSize="16"
                      Text="{Binding BotId}"

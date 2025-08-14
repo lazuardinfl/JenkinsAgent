@@ -66,7 +66,7 @@ public partial class ApplicationViewModel : ViewModelBase
         ConnectionSubMenu = new("Connection", false);
         ReconnectMenu = new("Auto Reconnect", AutoReconnect);
         ConnectMenu = new("Connect", Connect);
-        ConfigSubMenu = new("Configuration", false);
+        ConfigSubMenu = new("Settings", false);
         ReloadMenu = new("Reload", Reload);
         ResetMenu = new("Reset", Reset);
         ExitMenu = new("Exit", Exit);
