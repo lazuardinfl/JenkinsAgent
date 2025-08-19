@@ -20,7 +20,7 @@ public partial class App : Application
 {
     public static readonly string Title = Helper.GetAppTitle() ?? "Bot";
     public static readonly string Description = Helper.GetAppDescription() ?? "Bot Agent";
-    public static readonly Version? Version = Helper.GetAppVersion();
+    public static readonly string Version = Helper.GetAppVersion() ?? "Undefined";
     public static readonly string Hash = Helper.GetAppHash();
     public static readonly bool IsElevated = Helper.IsAppElevated();
     public static readonly string BaseDir = Helper.GetBaseDir().Replace(@"\", "/");

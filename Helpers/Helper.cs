@@ -16,7 +16,7 @@ public static partial class Helper
 
     public static string? GetAppDescription() => Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyTitleAttribute>()?.Title;
 
-    public static Version? GetAppVersion() => Assembly.GetExecutingAssembly().GetName().Version;
+    public static string? GetAppVersion() => Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
 
     public static string GetAppHash()
     {

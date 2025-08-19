@@ -137,7 +137,6 @@ public partial class ApplicationViewModel : ViewModelBase
         string msg = $"Are you sure to {(config.Client.IsAutoReconnect ? "disable" : "enable")} auto reconnect?";
         if (MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Reconnect", msg))
         {
-            config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
             switch (jenkins.Status, config.Client.IsAutoReconnect)
             {
                 case (ConnectionStatus.Retry, true):
@@ -147,6 +146,7 @@ public partial class ApplicationViewModel : ViewModelBase
                     await jenkins.Connect();
                     break;
             }
+            config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
             ReconnectMenu.IsChecked = config.Client.IsAutoReconnect;
             ConnectMenu.IsEnabled = !ReconnectMenu.IsChecked;
             await config.Save();
@@ -285,7 +285,7 @@ public partial class ApplicationViewModel : ViewModelBase
             ConnectionStatus.Unknown => "Unknown",
             _ => "",
         };
-        return $"{App.Description} v{App.Version?.Major}.{App.Version?.Minor}.{App.Version?.Build}" +
-               $"{(App.IsElevated ? " (Admin)" : "")}\nBot Id: {config.Client.BotId}\nStatus: {status}";
+        return $"{App.Description} v{App.Version}{(App.IsElevated ? " (Admin)" : "")}\n" +
+               $"Bot Id: {config.Client.BotId}\nStatus: {status}";
     }
 }

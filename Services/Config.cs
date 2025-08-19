@@ -28,8 +28,7 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
             using (HttpClient httpClient = httpClientFactory.CreateClient())
             {
                 httpClient.DefaultRequestHeaders.Add("Bot-Hash", App.Hash);
-                httpClient.DefaultRequestHeaders.Add("Bot-Version", $"{App.Version?.Major}.{App.Version?.Minor}.{App.Version?.Build}");
-                httpClient.DefaultRequestHeaders.Add("Bot-Build", $"{App.Version?.Major}{App.Version?.Minor}{App.Version?.Build}");
+                httpClient.DefaultRequestHeaders.Add("Bot-Version", App.Version);
                 string serverConfig = await httpClient.GetStringAsync(Helper.CreateUrl(Client.OrchestratorUrl, Client.SettingsUrl));
                 Server = JsonSerializer.Deserialize<ServerConfig>(serverConfig)!;
             }
