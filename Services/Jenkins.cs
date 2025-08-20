@@ -18,30 +18,32 @@ public enum ConnectionStatus { Connected, Disconnected, Initialize, Retry, Inter
 
 public class Jenkins
 {
-    private readonly ManualResetEvent mre = new(false);
     private readonly ILogger logger;
     private readonly IHttpClientFactory httpClientFactory;
     private readonly Config config;
+    private readonly ManualResetEvent mre;
     private readonly Dictionary<ConnectionStatus, string[]> outputStreams;
-    private ConnectionStatus status = ConnectionStatus.Disconnected;
-    private Process process = null!;
+    private ConnectionStatus status;
+    private Process? process;
 
     public Jenkins(ILogger<Jenkins> logger, IHttpClientFactory httpClientFactory, Config config)
     {
         this.logger = logger;
         this.httpClientFactory = httpClientFactory;
         this.config = config;
-        config.Reloaded += OnConfigReloaded;
+        mre = new(false);
         outputStreams = new()
         {
             { ConnectionStatus.Connected, ["INFO: Connected"] },
             { ConnectionStatus.Interrupted, ["Write side closed"] },
-            { ConnectionStatus.Retry, ["Failed to obtain", "is not ready"] },
+            { ConnectionStatus.Retry, ["is not ready", "seconds before retry"] },
             { ConnectionStatus.Disconnected, [
                 "buffer too short", "For input string", "Invalid byte", "takes an operand",
                 "No subject alternative DNS", "SEVERE: Handshake error"
             ]}
         };
+        status = ConnectionStatus.Disconnected;
+        config.Reloaded += OnConfigReloaded;
     }
 
     public event EventHandler? ConnectionChanged;
@@ -84,9 +86,9 @@ public class Jenkins
                 process.StartInfo.RedirectStandardOutput = true;
                 process.StartInfo.RedirectStandardError = true;
                 process.EnableRaisingEvents = true;
-                process.OutputDataReceived += new DataReceivedEventHandler(OnOutputReceived);
-                process.ErrorDataReceived += new DataReceivedEventHandler(OnOutputReceived);
-                process.Exited += new EventHandler(OnExited);
+                process.OutputDataReceived += OnOutputReceived;
+                process.ErrorDataReceived += OnOutputReceived;
+                process.Exited += OnExited;
                 process.Start();
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
@@ -111,11 +113,14 @@ public class Jenkins
         try
         {
             logger.LogInformation("Jenkins disconnected");
-            logger.LogInformation("Jenkins PID {pid} exited", process.Id);
-            process.CancelOutputRead();
-            process.CancelErrorRead();
-            process.Kill(true);
-            process.Close();
+            if (process is not null)
+            {
+                logger.LogInformation("Jenkins PID {pid} exited", process.Id);
+                process.CancelOutputRead();
+                process.CancelErrorRead();
+                process.Kill(config.Server.KillProcessTreeOnExit);
+                process.Close();
+            }
         }
         catch (Exception e)
         {
@@ -129,7 +134,7 @@ public class Jenkins
         bool isReady = false;
         Status = ConnectionStatus.Initialize;
         // check config
-        if (config.IsValid)
+        if (config.IsVersionCompatible)
         {
             // check java
             bool isJavaReady = IsJavaVersionCompatible() || await DownloadJava();
@@ -164,18 +169,12 @@ public class Jenkins
         try
         {
             using (HttpClient httpClient = httpClientFactory.CreateClient())
+            using (HttpResponseMessage response = await httpClient.GetAsync(Helper.CreateUrl(config.Client.OrchestratorUrl, config.Server.JavaUrl)))
+            using (Stream stream = await response.Content.ReadAsStreamAsync())
+            using (ZipArchive archive = new(stream))
             {
-                using (HttpResponseMessage response = await httpClient.GetAsync(Helper.CreateUrl(config.Client.OrchestratorUrl, config.Server.JavaUrl)))
-                {
-                    using (Stream stream = await response.Content.ReadAsStreamAsync())
-                    {
-                        using (ZipArchive archive = new(stream))
-                        {
-                            if (Directory.Exists(javaDir)) { Directory.Delete(javaDir, true); }
-                            archive.ExtractToDirectory(App.ProfileDir, true);
-                        }
-                    }
-                }
+                if (Directory.Exists(javaDir)) { Directory.Delete(javaDir, true); }
+                archive.ExtractToDirectory(App.ProfileDir, true);
             }
             DirectoryInfo javaTemp = new DirectoryInfo(App.ProfileDir).GetDirectories().OrderByDescending(d => d.LastWriteTimeUtc).First();
             Directory.Move(javaTemp.FullName, javaDir);
@@ -219,17 +218,11 @@ public class Jenkins
         try
         {
             using (HttpClient httpClient = httpClientFactory.CreateClient())
+            using (HttpResponseMessage response = await httpClient.GetAsync(Helper.CreateUrl(config.Client.OrchestratorUrl, config.Server.AgentUrl)))
+            using (Stream stream = await response.Content.ReadAsStreamAsync())
+            using (FileStream file = File.Create($"{App.ProfileDir}/{config.Server.AgentPath}"))
             {
-                using (HttpResponseMessage response = await httpClient.GetAsync(Helper.CreateUrl(config.Client.OrchestratorUrl, config.Server.AgentUrl)))
-                {
-                    using (Stream stream = await response.Content.ReadAsStreamAsync())
-                    {
-                        using (FileStream file = File.Create($"{App.ProfileDir}/{config.Server.AgentPath}"))
-                        {
-                            stream.CopyTo(file);
-                        }
-                    }
-                }
+                stream.CopyTo(file);
             }
             return true;
         }
@@ -263,7 +256,7 @@ public class Jenkins
                 break;
             case ConnectionStatus.Interrupted:
                 Status = ConnectionStatus.Interrupted;
-                if (!await config.Reload()) { Disconnect(); }
+                if (!await config.Reload() || !config.IsVersionCompatible || !config.Client.IsAutoReconnect) { Disconnect(); }
                 break;
             case ConnectionStatus.Retry:
                 mre.Set();
@@ -287,7 +280,7 @@ public class Jenkins
         if (Status != ConnectionStatus.Interrupted && (Status != ConnectionStatus.Disconnected || config.Client.IsAutoReconnect))
         {
             Disconnect();
-            if (config.IsValid) { await Connect(); }
+            if (config.IsVersionCompatible) { await Connect(); }
         }
     }
 
@@ -296,7 +289,7 @@ public class Jenkins
         Status = ConnectionStatus.Disconnected;
         try
         {
-            process.Dispose();
+            process?.Dispose();
         }
         catch (Exception ex)
         {

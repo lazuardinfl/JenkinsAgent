@@ -13,6 +13,7 @@ namespace Bot.Services;
 public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory)
 {
     public bool IsValid { get; private set; } = false;
+    public bool IsVersionCompatible { get; private set; } = false;
     public ClientConfig Client { get; private set; } = new();
     public ServerConfig Server { get; private set; } = new();
 
@@ -32,12 +33,13 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
                 string serverConfig = await httpClient.GetStringAsync(Helper.CreateUrl(Client.OrchestratorUrl, Client.SettingsUrl));
                 Server = JsonSerializer.Deserialize<ServerConfig>(serverConfig)!;
             }
-            IsValid = true;
+            IsValid = IsVersionCompatible = true;
         }
         catch (Exception e)
         {
             if ((e is HttpRequestException httpEx) && (httpEx.StatusCode == HttpStatusCode.Unauthorized))
             {
+                IsVersionCompatible = false;
                 MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.VersionIncompatible));
             }
             else
@@ -73,7 +75,7 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
     {
         Client = new();
         Server = new();
-        IsValid = false;
+        IsValid = IsVersionCompatible = false;
         await Save();
         Reloaded?.Invoke(this, EventArgs.Empty);
     }
