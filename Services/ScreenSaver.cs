@@ -19,42 +19,37 @@ public class ScreenSaver
     private readonly ILogger logger;
     private readonly IHttpClientFactory httpClientFactory;
     private readonly Config config;
-    private readonly Timer timer = new(50000);
-    private DateTime lastUpdate = DateTime.Now;
-    private DateTime? preventLockExpiredDate = null;
-    private ExtensionStatus preventLockStatus = ExtensionStatus.Invalid;
+    private readonly Timer timer;
+    private DateTime lastUpdate;
+
+    public DateTime? PreventLockExpiredDate { get; private set; }
+    public ExtensionStatus PreventLockStatus { get; private set; }
 
     public ScreenSaver(ILogger<ScreenSaver> logger, IHttpClientFactory httpClientFactory, Config config)
     {
         this.logger = logger;
         this.httpClientFactory = httpClientFactory;
         this.config = config;
+        timer = new(config.Server.ScreenSaverTimerInterval);
+        lastUpdate = DateTime.Now;
+        PreventLockStatus = ExtensionStatus.Invalid;
         config.Reloaded += OnConfigReloaded;
         timer.Elapsed += OnTimedEvent;
     }
 
-    public event EventHandler<ScreenSaverEventArgs>? PreventLockStatusChanged;
-
-    [Flags]
-    private enum EXECUTION_STATE : uint
-    {
-        ES_AWAYMODE_REQUIRED = 0x00000040,
-        ES_CONTINUOUS = 0x80000000,
-        ES_DISPLAY_REQUIRED = 0x00000002,
-        ES_SYSTEM_REQUIRED = 0x00000001
-    }
+    public event EventHandler? PreventLockStatusChanged;
 
     public async void Initialize()
     {
         timer.Interval = config.Server.ScreenSaverTimerInterval;
-        preventLockExpiredDate = await GetPreventLockExpiredDate();
-        preventLockStatus = GetPreventLockStatus(preventLockExpiredDate);
+        PreventLockExpiredDate = await GetPreventLockExpiredDate();
+        PreventLockStatus = GetPreventLockStatus(PreventLockExpiredDate);
         ReloadPreventLock();
     }
 
     public void ReloadPreventLock()
     {
-        switch (preventLockStatus, config.Client.IsPreventLock)
+        switch (PreventLockStatus, config.Client.IsPreventLock)
         {
             case (ExtensionStatus.Valid, true):
                 SetScreenSaverTimeout(config.Server.ScreenSaverTimeout);
@@ -66,12 +61,7 @@ public class ScreenSaver
                 logger.LogInformation("Prevent Lock not running");
                 break;
         }
-        ScreenSaverEventArgs args = new()
-        {
-            PreventLockStatus = preventLockStatus,
-            PreventLockExpiredDate = preventLockExpiredDate
-        };
-        PreventLockStatusChanged?.Invoke(this, args);
+        PreventLockStatusChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private ExtensionStatus GetPreventLockStatus(DateTime? expiredDate)
@@ -110,18 +100,16 @@ public class ScreenSaver
             try
             {
                 using (HttpClient httpClient = httpClientFactory.CreateClient())
+                using (HttpResponseMessage response = await httpClient.PostAsync(Helper.CreateUrl(config.Client.OrchestratorUrl, config.Server.ExtensionAuthUrl), new FormUrlEncodedContent(content)))
                 {
-                    using (HttpResponseMessage response = await httpClient.PostAsync(Helper.CreateUrl(config.Client.OrchestratorUrl, config.Server.ExtensionAuthUrl), new FormUrlEncodedContent(content)))
+                    JsonNode jsonResponse = JsonNode.Parse(await response.Content.ReadAsStringAsync())!;
+                    JsonWebToken token = new(jsonResponse["access_token"]?.GetValue<string>());
+                    string[] info = token.GetPayloadValue<string[]>("info");
+                    foreach (var extension in info)
                     {
-                        JsonNode jsonResponse = JsonNode.Parse(await response.Content.ReadAsStringAsync())!;
-                        JsonWebToken token = new(jsonResponse["access_token"]?.GetValue<string>());
-                        string[] info = token.GetPayloadValue<string[]>("info");
-                        foreach (var extension in info)
+                        if (extension.Contains("PreventLock"))
                         {
-                            if (extension.Contains("PreventLock"))
-                            {
-                                return DateTime.ParseExact(extension.Split('@')[1], "yyyyMMdd", CultureInfo.InvariantCulture).Add(new TimeSpan(23, 59, 59));
-                            }
+                            return DateTime.ParseExact(extension.Split('@')[1], "yyyyMMdd", CultureInfo.InvariantCulture).Add(new TimeSpan(23, 59, 59));
                         }
                     }
                 }
@@ -129,7 +117,6 @@ public class ScreenSaver
             catch (Exception e)
             {
                 logger.LogError(e, "{msg}", e.Message);
-                return null;
             }
         }
         return null;
@@ -140,10 +127,10 @@ public class ScreenSaver
         if (DateTime.Now.Subtract(lastUpdate).TotalHours >= 24)
         {
             lastUpdate = DateTime.Now;
-            preventLockExpiredDate = await GetPreventLockExpiredDate();
+            PreventLockExpiredDate = await GetPreventLockExpiredDate();
         }
-        preventLockStatus = GetPreventLockStatus(preventLockExpiredDate);
-        switch (preventLockStatus)
+        PreventLockStatus = GetPreventLockStatus(PreventLockExpiredDate);
+        switch (PreventLockStatus)
         {
             case ExtensionStatus.Valid:
                 ResetLockScreenTimer();
@@ -164,7 +151,7 @@ public class ScreenSaver
     {
         try
         {
-            SetThreadExecutionState(EXECUTION_STATE.ES_DISPLAY_REQUIRED | EXECUTION_STATE.ES_CONTINUOUS);
+            _ = SetThreadExecutionState(0x00000002 | 0x80000000);
         }
         catch (Exception e)
         {
@@ -187,14 +174,8 @@ public class ScreenSaver
     }
 
     [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-    private static extern EXECUTION_STATE SetThreadExecutionState(EXECUTION_STATE esFlags);
+    private static extern uint SetThreadExecutionState(uint esFlags);
 
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern bool SystemParametersInfo(int uAction, int uParam, ref int lpvParam, int flags);
-}
-
-public class ScreenSaverEventArgs : EventArgs
-{
-    public ExtensionStatus PreventLockStatus { get; set; }
-    public DateTime? PreventLockExpiredDate { get; set; }
 }

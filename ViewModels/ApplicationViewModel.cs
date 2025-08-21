@@ -225,9 +225,9 @@ public partial class ApplicationViewModel : ViewModelBase
         StartupSubMenu.IsVisible = true;
     }
 
-    private void OnPreventLockStatusChanged(object? sender, ScreenSaverEventArgs e)
+    private void OnPreventLockStatusChanged(object? sender, EventArgs e)
     {
-        switch (e.PreventLockStatus)
+        switch (screenSaver.PreventLockStatus)
         {
             case ExtensionStatus.Valid:
                 ScreensaverSubMenu.IsVisible = true;
@@ -242,7 +242,7 @@ public partial class ApplicationViewModel : ViewModelBase
                 PreventLockMenu.IsEnabled = false;
                 break;
         }
-        ExpiredMenu.Header = $"Expired: {e.PreventLockExpiredDate:d MMMM yyyy}";
+        ExpiredMenu.Header = $"Expired: {screenSaver.PreventLockExpiredDate:d MMMM yyyy}";
     }
 
     private void OnConnectionChanged(object? sender, EventArgs e)
