@@ -12,13 +12,14 @@ namespace Bot.Services;
 
 public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory)
 {
+    public bool IsValid { get; private set; } = false;
+    public bool IsVersionCompatible { get; private set; } = false;
+    public ClientConfig Client { get; private set; } = new();
+    public ServerConfig Server { get; private set; } = new();
+
     public event EventHandler? Reloaded;
 
-    public bool IsValid { get; private set; } = false;
-    public ClientConfig Client { get; set; } = new();
-    public ServerConfig Server { get; set; } = new();
-
-    public async Task<bool> Reload(bool raiseEvent = false)
+    public async Task<bool> Reload(bool raiseEvent = true)
     {
         Directory.CreateDirectory(App.ProfileDir);
         try
@@ -28,17 +29,17 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
             using (HttpClient httpClient = httpClientFactory.CreateClient())
             {
                 httpClient.DefaultRequestHeaders.Add("Bot-Hash", App.Hash);
-                httpClient.DefaultRequestHeaders.Add("Bot-Version", $"{App.Version?.Major}.{App.Version?.Minor}.{App.Version?.Build}");
-                httpClient.DefaultRequestHeaders.Add("Bot-Build", $"{App.Version?.Major}{App.Version?.Minor}{App.Version?.Build}");
+                httpClient.DefaultRequestHeaders.Add("Bot-Version", App.Version);
                 string serverConfig = await httpClient.GetStringAsync(Helper.CreateUrl(Client.OrchestratorUrl, Client.SettingsUrl));
                 Server = JsonSerializer.Deserialize<ServerConfig>(serverConfig)!;
             }
-            IsValid = true;
+            IsValid = IsVersionCompatible = true;
         }
         catch (Exception e)
         {
             if ((e is HttpRequestException httpEx) && (httpEx.StatusCode == HttpStatusCode.Unauthorized))
             {
+                IsVersionCompatible = false;
                 MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.VersionIncompatible));
             }
             else
@@ -74,7 +75,7 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
     {
         Client = new();
         Server = new();
-        IsValid = false;
+        IsValid = IsVersionCompatible = false;
         await Save();
         Reloaded?.Invoke(this, EventArgs.Empty);
     }

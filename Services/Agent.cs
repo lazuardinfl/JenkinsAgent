@@ -11,11 +11,11 @@ public class Agent(Config config, Jenkins jenkins, AutoStartup autoStartup, Scre
     public async void Initialize()
     {
         SetEnvironmentVariable();
-        if (await config.Reload())
+        if (await config.Reload(false))
         {
             autoStartup.Initialize();
             screenSaver.Initialize();
-            await jenkins.Connect((App.Lifetime().Args ?? []).Contains("startup"));
+            await jenkins.Connect(Environment.GetCommandLineArgs().Contains("startup"));
         }
         Mre.Set();
     }

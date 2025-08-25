@@ -1,8 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
-using Avalonia.Threading;
 using Bot.Helpers;
 using Bot.Services;
 using Bot.ViewModels;
@@ -11,82 +11,81 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace Bot;
 
 public partial class App : Application
 {
-    public const string DefaultConfigUrl = "public/config/bot.json";
     public static readonly string Title = Helper.GetAppTitle() ?? "Bot";
     public static readonly string Description = Helper.GetAppDescription() ?? "Bot Agent";
-    public static readonly Version? Version = Helper.GetAppVersion();
+    public static readonly string Version = Helper.GetAppVersion() ?? "Undefined";
     public static readonly string Hash = Helper.GetAppHash();
-    public static readonly bool IsAdministrator = Helper.IsAppElevated();
+    public static readonly bool IsElevated = Helper.IsAppElevated();
     public static readonly string BaseDir = Helper.GetBaseDir().Replace(@"\", "/");
     public static readonly string ProfileDir = $"{Helper.GetUserDir().Replace(@"\", "/")}/{Title}";
-    public static readonly ManualResetEvent Mre = new(false);
     private static readonly Mutex mutex = new(true, Title);
     private readonly IHost host;
-    private readonly Config config;
-    private readonly AppTray tray;
     private readonly Agent agent;
 
     public App()
     {
         SingleInstance();
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-        builder.Logging.ClearProviders();
-        builder.Logging.AddEventLog();
-        builder.Logging.AddEventSourceLogger();
-        builder.Logging.AddConsole();
-        builder.Logging.AddSimpleConsole(options =>
-        {
-            options.IncludeScopes = false;
-            options.SingleLine = false;
-            options.TimestampFormat = "yyyy-MM-dd HH:mm:ss # ";
-        });
-        builder.Services.AddHttpClient();
-        builder.Services.AddSingleton<Config>();
-        builder.Services.AddSingleton<AutoStartup>();
-        builder.Services.AddSingleton<ScreenSaver>();
-        builder.Services.AddSingleton<Jenkins>();
-        builder.Services.AddSingleton<Agent>();
-        builder.Services.AddSingleton<AppTray>();
+        builder.Logging.ClearProviders()
+            .AddEventLog()
+            .AddEventSourceLogger()
+            .AddConsole()
+            .AddSimpleConsole(options =>
+            {
+                options.IncludeScopes = false;
+                options.SingleLine = false;
+                options.TimestampFormat = "yyyy-MM-dd HH:mm:ss K # ";
+            });
+        builder.Services.AddHttpClient()
+            .AddSingleton<Config>()
+            .AddSingleton<AutoStartup>()
+            .AddSingleton<ScreenSaver>()
+            .AddSingleton<Jenkins>()
+            .AddSingleton<Agent>()
+            .AddTransient<ApplicationViewModel>()
+            .AddTransient<MainWindowViewModel>();
         host = builder.Build();
-        config = host.Services.GetRequiredService<Config>();
         agent = host.Services.GetRequiredService<Agent>();
-        tray = host.Services.GetRequiredService<AppTray>();
+        DataContext = host.Services.GetRequiredService<ApplicationViewModel>();
     }
 
     public override void Initialize()
     {
         agent.Initialize();
-        tray.Initialize();
         AvaloniaXamlLoader.Load(this);
     }
 
     public override void OnFrameworkInitializationCompleted()
     {
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime app)
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-            app.MainWindow = new MainWindow
+            // Avoid duplicate validations from both Avalonia and the CommunityToolkit
+            foreach (var plugin in BindingPlugins.DataValidators.OfType<DataAnnotationsValidationPlugin>().ToArray())
             {
-                DataContext = new MainWindowViewModel(config)
-            };
-            tray.RegisterShowMainWindow((MainWindowViewModel)app.MainWindow.DataContext);
+                BindingPlugins.DataValidators.Remove(plugin);
+            }
+            // Load main window
+            desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            desktop.MainWindow = new MainWindow { DataContext = host.Services.GetRequiredService<MainWindowViewModel>() };
+            if (desktop.MainWindow.DataContext is MainWindowViewModel mainWindow)
+            {
+                mainWindow.Initialize();
+                if (DataContext is ApplicationViewModel app)
+                {
+                    app.ShowPage = mainWindow.Show;
+                    app.Initialize();
+                }
+            }
         }
         base.OnFrameworkInitializationCompleted();
-        Mre.Set();
     }
-
-    public static IClassicDesktopStyleApplicationLifetime Lifetime() => (IClassicDesktopStyleApplicationLifetime)Current!.ApplicationLifetime!;
-
-    public static Dispatcher GetUIThread() => Dispatcher.UIThread;
-
-    public static async Task Exit() => await GetUIThread().InvokeAsync(() => Lifetime().Shutdown());
 
     private void SingleInstance()
     {
@@ -94,9 +93,9 @@ public partial class App : Application
         {
             MessageBoxHelper.ShowError("Application already running!");
             mutex.Dispose();
-            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime app)
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
-                app.Shutdown();
+                desktop.Shutdown();
             }
             Environment.Exit(0);
         }

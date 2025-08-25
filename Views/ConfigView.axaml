@@ -6,22 +6,27 @@
              x:Class="Bot.Views.ConfigView"
              x:DataType="vm:ConfigViewModel"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             Width="500" Height="330">
+             Width="500" Height="430">
 
     <Grid RowDefinitions="*,Auto" Margin="10">
         <StackPanel Grid.Row="0" VerticalAlignment="Center" Spacing="10" MaxWidth="350">
             <TextBlock VerticalAlignment="Center"
-                      FontSize="16"
-                      FontWeight="SemiBold"
-                      Text="Bot Configuration"
-                      TextAlignment="Center"
-                      TextWrapping="Wrap" />
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Text="Bot Configuration"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap" />
             <TextBox VerticalAlignment="Center"
                      FontSize="16"
                      Text="{Binding OrchestratorUrl}"
                      Watermark="Orchestrator URL"
                      UseFloatingWatermark="True"
                      ToolTip.Tip="e.g. https://orchestrator.domain.com" />
+            <TextBox VerticalAlignment="Center"
+                     FontSize="16"
+                     Text="{Binding SettingsUrl}"
+                     Watermark="Settings URL"
+                     UseFloatingWatermark="True" />
             <TextBox VerticalAlignment="Center"
                      FontSize="16"
                      Text="{Binding BotId}"
@@ -33,6 +38,8 @@
                      Text="{Binding BotToken}"
                      Watermark="Bot Token"
                      UseFloatingWatermark="True" />
+            <CheckBox IsChecked="{Binding IsWindowsCertStoreUsed}" FontSize="16">Use Windows Trusted CA Store</CheckBox>
+            <CheckBox IsChecked="{Binding IsUacDisabled}" FontSize="16">Disable UAC Elevation Prompt</CheckBox>
         </StackPanel>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,0,10,10">
