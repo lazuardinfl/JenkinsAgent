@@ -12,7 +12,7 @@ using System.Timers;
 
 namespace Bot.Services;
 
-public enum ExtensionStatus { Valid, Invalid, Expired }
+public enum ExtensionStatus { Valid, Invalid, Expired, GracePeriod }
 
 public class ScreenSaver
 {
@@ -42,8 +42,8 @@ public class ScreenSaver
     public async void Initialize()
     {
         timer.Interval = config.Server.ScreenSaverTimerInterval;
-        PreventLockExpiredDate = await GetPreventLockExpiredDate();
-        PreventLockStatus = GetPreventLockStatus(PreventLockExpiredDate);
+        UpdatePreventLockStatus(await GetPreventLockExpiredDate());
+        UpdatePreventLockStatus(PreventLockExpiredDate);
         ReloadPreventLock();
     }
 
@@ -51,43 +51,58 @@ public class ScreenSaver
     {
         switch (PreventLockStatus, config.Client.IsPreventLock)
         {
-            case (ExtensionStatus.Valid, true):
+            case (ExtensionStatus.Valid or ExtensionStatus.GracePeriod, true):
                 SetScreenSaverTimeout(config.Server.ScreenSaverTimeout);
                 timer.Enabled = true;
-                logger.LogInformation("Prevent Lock running");
+                logger.LogInformation("Prevent Lock is {msg}", PreventLockStatus is ExtensionStatus.Valid ? "running" : "in grace period");
                 break;
             default:
                 timer.Enabled = false;
-                logger.LogInformation("Prevent Lock not running");
+                logger.LogInformation("Prevent Lock is not running");
                 break;
         }
         PreventLockStatusChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private ExtensionStatus GetPreventLockStatus(DateTime? expiredDate)
+    private void UpdatePreventLockStatus(DateTime? expiredDate)
     {
         try
         {
-            switch ((int?)(expiredDate == null ? null : DateTime.Now.CompareTo(expiredDate)))
+            switch (PreventLockStatus, (int?)(expiredDate is null ? null : DateTime.Now.CompareTo(expiredDate)))
             {
-                case <= 0:
-                    return ExtensionStatus.Valid;
-                case > 0:
-                    return ExtensionStatus.Expired;
-                case null:
-                    return ExtensionStatus.Invalid;
+                case (ExtensionStatus.Valid, null):
+                    DateTime gracePeriod = DateTime.Now.AddHours(config.Server.ScreenSaverGracePeriod);
+                    if (gracePeriod.CompareTo(PreventLockExpiredDate) < 0)
+                    {
+                        PreventLockExpiredDate = gracePeriod;
+                        PreventLockStatus = ExtensionStatus.GracePeriod;
+                    }
+                    break;
+                case (ExtensionStatus.Invalid or ExtensionStatus.Expired, null):
+                    PreventLockExpiredDate = null;
+                    PreventLockStatus = ExtensionStatus.Invalid;
+                    break;
+                case (ExtensionStatus.Valid or ExtensionStatus.Invalid or ExtensionStatus.Expired, <= 0):
+                case (ExtensionStatus.GracePeriod, <= 0) when (expiredDate is DateTime exp) && (exp.CompareTo(PreventLockExpiredDate) != 0):
+                    PreventLockExpiredDate = expiredDate;
+                    PreventLockStatus = ExtensionStatus.Valid;
+                    break;
+                case (_, > 0):
+                    PreventLockExpiredDate = expiredDate;
+                    PreventLockStatus = ExtensionStatus.Expired;
+                    break;
             }
         }
         catch (Exception e)
         {
             logger.LogError(e, "{msg}", e.Message);
-            return ExtensionStatus.Invalid;
+            PreventLockStatus = ExtensionStatus.Invalid;
         }
     }
 
     private async Task<DateTime?> GetPreventLockExpiredDate()
     {
-        if (config.IsValid)
+        if (config.IsValid || config.IsVersionCompatible)
         {
             Dictionary<string, string?> content = new()
             {
@@ -124,15 +139,16 @@ public class ScreenSaver
 
     private async void OnTimedEvent(object? sender, ElapsedEventArgs e)
     {
-        if (DateTime.Now.Subtract(lastUpdate).TotalHours >= 24)
+        if (DateTime.Now.Subtract(lastUpdate).TotalMinutes >= config.Server.ScreenSaverUpdateInterval)
         {
             lastUpdate = DateTime.Now;
-            PreventLockExpiredDate = await GetPreventLockExpiredDate();
+            UpdatePreventLockStatus(await GetPreventLockExpiredDate());
+            PreventLockStatusChanged?.Invoke(this, EventArgs.Empty);
         }
-        PreventLockStatus = GetPreventLockStatus(PreventLockExpiredDate);
+        UpdatePreventLockStatus(PreventLockExpiredDate);
         switch (PreventLockStatus)
         {
-            case ExtensionStatus.Valid:
+            case ExtensionStatus.Valid or ExtensionStatus.GracePeriod:
                 ResetLockScreenTimer();
                 break;
             default:
@@ -144,6 +160,7 @@ public class ScreenSaver
     private void OnConfigReloaded(object? sender, EventArgs e)
     {
         lastUpdate = DateTime.Now;
+        if (!config.IsVersionCompatible) { PreventLockStatus = ExtensionStatus.Invalid; }
         Initialize();
     }
 
@@ -151,6 +168,7 @@ public class ScreenSaver
     {
         try
         {
+            // prevent display turned off
             _ = SetThreadExecutionState(0x00000002 | 0x80000000);
         }
         catch (Exception e)
@@ -159,11 +177,11 @@ public class ScreenSaver
         }
     }
 
-    // Pass in the number of seconds to set the screen saver timeout value.
     private void SetScreenSaverTimeout(int timeout)
     {
         try
         {
+            // screen saver timeout in seconds
             int nullVar = 0;
             SystemParametersInfo(15, timeout, ref nullVar, 2);
         }

@@ -19,4 +19,6 @@ public sealed class ServerConfig
     public string? ExtensionAuthSecret { get; set; }
     public int ScreenSaverTimeout { get; set; } = 600;
     public int ScreenSaverTimerInterval { get; set; } = 50000;
+    public int ScreenSaverUpdateInterval { get; set; } = 180;
+    public int ScreenSaverGracePeriod { get; set; } = 72;
 }

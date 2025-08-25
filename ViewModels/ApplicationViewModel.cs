@@ -229,7 +229,7 @@ public partial class ApplicationViewModel : ViewModelBase
     {
         switch (screenSaver.PreventLockStatus)
         {
-            case ExtensionStatus.Valid:
+            case ExtensionStatus.Valid or ExtensionStatus.GracePeriod:
                 ScreensaverSubMenu.IsVisible = true;
                 PreventLockMenu.IsEnabled = true;
                 break;
@@ -242,7 +242,9 @@ public partial class ApplicationViewModel : ViewModelBase
                 PreventLockMenu.IsEnabled = false;
                 break;
         }
-        ExpiredMenu.Header = $"Expired: {screenSaver.PreventLockExpiredDate:d MMMM yyyy}";
+        ExpiredMenu.Header = screenSaver.PreventLockStatus is ExtensionStatus.GracePeriod ?
+            $"Grace Period: {screenSaver.PreventLockExpiredDate:d MMM yyyy - HH:mm}" :
+            $"Expired: {screenSaver.PreventLockExpiredDate:d MMMM yyyy}";
     }
 
     private void OnConnectionChanged(object? sender, EventArgs e)
