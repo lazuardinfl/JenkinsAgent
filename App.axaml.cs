@@ -10,6 +10,7 @@ using Bot.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Serilog;
 using System;
 using System.Linq;
 using System.Threading;
@@ -33,16 +34,13 @@ public partial class App : Application
     {
         SingleInstance();
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-        builder.Logging.ClearProviders()
-            .AddEventLog()
-            .AddEventSourceLogger()
-            .AddConsole()
-            .AddSimpleConsole(options =>
-            {
-                options.IncludeScopes = false;
-                options.SingleLine = false;
-                options.TimestampFormat = "yyyy-MM-dd HH:mm:ss K # ";
-            });
+        builder.Logging.AddSimpleConsole(opt => { opt.TimestampFormat = "yyyy-MM-dd HH:mm:ss K # "; })
+            .AddSerilog(new LoggerConfiguration()
+                .Enrich.FromLogContext()
+                .WriteTo.Async(a => a.File($"{ProfileDir}/logs/{Title}_v{Version}_.log",
+                    rollingInterval: RollingInterval.Month, fileSizeLimitBytes: 104857600, rollOnFileSizeLimit: true))
+                .CreateLogger(), true
+            );
         builder.Services.AddHttpClient()
             .AddSingleton<Config>()
             .AddSingleton<AutoStartup>()
