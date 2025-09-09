@@ -34,14 +34,18 @@ public partial class App : Application
     {
         SingleInstance();
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-        builder.Logging.AddSimpleConsole(opt => { opt.TimestampFormat = "yyyy-MM-dd HH:mm:ss K # "; })
-            .AddSerilog(new LoggerConfiguration()
+        SwitchableLogger serilog = new()
+        {
+            Logger = new LoggerConfiguration()
                 .Enrich.FromLogContext()
                 .WriteTo.Async(a => a.File($"{ProfileDir}/logs/{Title}_v{Version}_.log",
                     rollingInterval: RollingInterval.Month, fileSizeLimitBytes: 104857600, rollOnFileSizeLimit: true))
-                .CreateLogger(), true
-            );
+                .CreateLogger()
+        };
+        builder.Logging.AddSerilog(serilog, true)
+            .AddSimpleConsole(options => options.TimestampFormat = "yyyy-MM-dd HH:mm:ss K # ");
         builder.Services.AddHttpClient()
+            .AddSingleton(serilog)
             .AddSingleton<Config>()
             .AddSingleton<AutoStartup>()
             .AddSingleton<ScreenSaver>()

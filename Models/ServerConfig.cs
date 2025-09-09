@@ -14,6 +14,12 @@ public sealed class ServerConfig
     public int StartupConnectTimeout { get; set; } = 120000;
     public int TaskSchedulerDelay { get; set; } = 60;
     public string? TaskSchedulerName { get; set; }
+    public bool LogstashIsEnabled { get; set; } = false;
+    public string LogstashUrl { get; set; } = "http://localhost:5047";
+    public bool ElasticsearchIsEnabled { get; set; } = false;
+    public string ElasticsearchUrl { get; set; } = "http://localhost:9200";
+    public string ElasticsearchApiKey { get; set; } = "apikey";
+    public string[] ElasticsearchDataStream { get; set; } = ["logs", "jenkins"];
     public string? ExtensionAuthUrl { get; set; }
     public string? ExtensionAuthId { get; set; }
     public string? ExtensionAuthSecret { get; set; }
