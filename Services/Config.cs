@@ -127,6 +127,7 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
         doc.AssignField("bot.version", App.Version);
         doc.AssignField("bot.elevated", App.IsElevated);
         doc.AssignField("bot.ip", Helper.GetLocalIPAddress());
+        doc.AssignField("bot.environment", Environment.GetEnvironmentVariable("APPLICATION_ENVIRONMENT"));
         return doc;
     }
 }

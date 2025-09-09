@@ -34,6 +34,10 @@ public partial class App : Application
     {
         SingleInstance();
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+        Environment.SetEnvironmentVariable("APPLICATION_ENVIRONMENT", builder.Environment.EnvironmentName);
+        var logging = builder.Logging;
+        if (builder.Environment.IsProduction()) { logging.ClearProviders(); }
+        else { logging.AddSimpleConsole(options => options.TimestampFormat = "yyyy-MM-dd HH:mm:ss K # "); }
         SwitchableLogger serilog = new()
         {
             Logger = new LoggerConfiguration()
@@ -42,8 +46,7 @@ public partial class App : Application
                     rollingInterval: RollingInterval.Month, fileSizeLimitBytes: 104857600, rollOnFileSizeLimit: true))
                 .CreateLogger()
         };
-        builder.Logging.AddSerilog(serilog, true)
-            .AddSimpleConsole(options => options.TimestampFormat = "yyyy-MM-dd HH:mm:ss K # ");
+        logging.AddSerilog(serilog, true);
         builder.Services.AddHttpClient()
             .AddSingleton(serilog)
             .AddSingleton<Config>()
