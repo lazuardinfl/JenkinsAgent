@@ -60,6 +60,8 @@ public class AutoStartup
             {
                 IsElevated = task.Definition.Principal.RunLevel == TaskRunLevel.Highest;
                 IsEnabled = task.Enabled && (IsTaskSchedulerValid() || await CreateTaskScheduler(true, IsElevated));
+                logger.LogInformation("Auto startup scheduler '{scheduler:l}' is {enabled:l} and {elevated:l}",
+                    config.Server.TaskSchedulerName, IsEnabled ? "enabled" : "disabled", IsElevated ? "elevated" : "not elevated");
             }
         }
     }
@@ -68,7 +70,12 @@ public class AutoStartup
     {
         bool result = !IsTaskSchedulerValid() ? await CreateTaskScheduler(enable, IsElevated) :
             await RunSchtasks($"/change /tn \"{config.Server.TaskSchedulerName}\" /{(enable ? "ENABLE" : "DISABLE")}");
-        IsEnabled = result ? enable : IsEnabled;
+        if (result)
+        {
+            IsEnabled = enable;
+            logger.LogInformation("Auto startup scheduler '{scheduler:l}' is {status:l}",
+                config.Server.TaskSchedulerName, IsEnabled ? "enabled" : "disabled");
+        }
         return result;
     }
 
@@ -76,7 +83,12 @@ public class AutoStartup
     {
         bool result = !IsTaskSchedulerValid() ? await CreateTaskScheduler(IsEnabled, elevate) :
             await RunSchtasks($"/change /tn \"{config.Server.TaskSchedulerName}\" /rl {(elevate ? "HIGHEST" : "LIMITED")}");
-        IsElevated = result ? elevate : IsElevated;
+        if (result)
+        {
+            IsElevated = elevate;
+            logger.LogInformation("Auto startup scheduler '{scheduler:l}' is {status:l}",
+                config.Server.TaskSchedulerName, IsElevated ? "elevated" : "not elevated");
+        }
         return result;
     }
 
@@ -99,7 +111,7 @@ public class AutoStartup
         }
         catch (Exception e)
         {
-            logger.LogError(e, "{msg}", e.Message);
+            logger.LogError(e, "{msg:l}", e.Message);
             return false;
         }
     }
@@ -150,7 +162,7 @@ public class AutoStartup
         }
         catch (Exception e)
         {
-            logger.LogError(e, "{msg}", e.Message);
+            logger.LogError(e, "{msg:l}", e.Message);
             return false;
         }
     }

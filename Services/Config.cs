@@ -27,6 +27,7 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
 
     public async Task<bool> Reload(bool raiseEvent = true)
     {
+        logger.LogInformation("Reloading config");
         Directory.CreateDirectory(App.ProfileDir);
         try
         {
@@ -87,7 +88,7 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
             {
                 MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed));
             }
-            logger.LogError(e, "{msg}", e.Message);
+            logger.LogError(e, "{msg:l}", e.Message);
             IsValid = false;
         }
         if (raiseEvent) { Reloaded?.Invoke(this, EventArgs.Empty); }
@@ -96,6 +97,7 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
 
     public async Task<bool> Save()
     {
+        logger.LogInformation("Saving config");
         Directory.CreateDirectory(App.ProfileDir);
         try
         {
@@ -107,13 +109,14 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
         }
         catch (Exception e)
         {
-            logger.LogError(e, "{msg}", e.Message);
+            logger.LogError(e, "{msg:l}", e.Message);
             return false;
         }
     }
 
     public async Task Reset()
     {
+        logger.LogInformation("Resetting config");
         Client = new();
         Server = new();
         IsValid = IsVersionCompatible = false;

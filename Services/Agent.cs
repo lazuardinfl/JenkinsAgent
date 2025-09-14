@@ -1,10 +1,11 @@
+using Microsoft.Extensions.Logging;
 using System;
 using System.Linq;
 using System.Threading;
 
 namespace Bot.Services;
 
-public class Agent(Config config, Jenkins jenkins, AutoStartup autoStartup, ScreenSaver screenSaver)
+public class Agent(ILogger<Agent> logger, Config config, Jenkins jenkins, AutoStartup autoStartup, ScreenSaver screenSaver)
 {
     public static readonly ManualResetEvent Mre = new(false);
 
@@ -13,6 +14,7 @@ public class Agent(Config config, Jenkins jenkins, AutoStartup autoStartup, Scre
         SetEnvironmentVariable();
         if (await config.Reload(false))
         {
+            logger.LogInformation("Application starting");
             autoStartup.Initialize();
             screenSaver.Initialize();
             await jenkins.Connect(Environment.GetCommandLineArgs().Contains("startup"));

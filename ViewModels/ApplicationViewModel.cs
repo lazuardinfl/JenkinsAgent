@@ -20,6 +20,7 @@ public partial class ApplicationViewModel : ViewModelBase
     private readonly Jenkins jenkins;
     private readonly AutoStartup autoStartup;
     private readonly ScreenSaver screenSaver;
+    private readonly Action flushLog;
     private readonly Dictionary<BotIcon, WindowIcon> icons;
     [ObservableProperty]
     private WindowIcon icon;
@@ -43,13 +44,14 @@ public partial class ApplicationViewModel : ViewModelBase
     public TrayMenu ExitMenu { get; }
     public Action<Page> ShowPage { get; set; }
 
-    public ApplicationViewModel(ILogger<ApplicationViewModel> logger, Config config, Jenkins jenkins, AutoStartup autoStartup, ScreenSaver screenSaver)
+    public ApplicationViewModel(ILogger<ApplicationViewModel> logger, Config config, Jenkins jenkins, AutoStartup autoStartup, ScreenSaver screenSaver, Serilog.SwitchableLogger serilog)
     {
         this.logger = logger;
         this.config = config;
         this.jenkins = jenkins;
         this.autoStartup = autoStartup;
         this.screenSaver = screenSaver;
+        flushLog = serilog.Dispose;
         icons = new() {
             { BotIcon.Normal, new(AssetLoader.Open(new Uri($"avares://{App.Title}/Assets/normal.ico"))) },
             { BotIcon.Offline, new(AssetLoader.Open(new Uri($"avares://{App.Title}/Assets/offline.ico"))) }
@@ -87,6 +89,8 @@ public partial class ApplicationViewModel : ViewModelBase
         ConnectMenu.IsEnabled = !ReconnectMenu.IsChecked;
         StartupSubMenu.IsVisible = true;
         ConfigSubMenu.IsVisible = true;
+        logger.LogInformation("Auto reconnect is {status:l}", config.Client.IsAutoReconnect ? "enabled" : "disabled");
+        logger.LogInformation("Application tray initialized");
     }
 
     public void ShowMainWindow(Page page) => ShowPage(page);
@@ -137,7 +141,8 @@ public partial class ApplicationViewModel : ViewModelBase
         string msg = $"Are you sure to {(config.Client.IsAutoReconnect ? "disable" : "enable")} auto reconnect?";
         if (MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Reconnect", msg))
         {
-            switch (jenkins.Status, config.Client.IsAutoReconnect)
+            config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
+            switch (jenkins.Status, !config.Client.IsAutoReconnect)
             {
                 case (ConnectionStatus.Retry, true):
                     jenkins.Disconnect();
@@ -146,12 +151,12 @@ public partial class ApplicationViewModel : ViewModelBase
                     await jenkins.Connect();
                     break;
             }
-            config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
             ReconnectMenu.IsChecked = config.Client.IsAutoReconnect;
             ConnectMenu.IsEnabled = !ReconnectMenu.IsChecked;
             await config.Save();
         }
         ConnectionSubMenu.IsEnabled = ConfigSubMenu.IsEnabled = true;
+        logger.LogInformation("Auto reconnect is {status:l}", config.Client.IsAutoReconnect ? "enabled" : "disabled");
     }
 
     private async Task Connect()
@@ -210,6 +215,7 @@ public partial class ApplicationViewModel : ViewModelBase
             screenSaver.PreventLockStatusChanged -= OnPreventLockStatusChanged;
             jenkins.Disconnect();
             logger.LogInformation("Application exiting");
+            flushLog();
             if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 desktop.Shutdown();
