@@ -54,4 +54,12 @@ public partial class MainWindowViewModel : ViewModelBase
             }
         }
     }
+
+    public void Close()
+    {
+        if (CurrentPage is ConfigViewModel configView)
+        {
+            configView.SetValueOnUI();
+        }
+    }
 }
