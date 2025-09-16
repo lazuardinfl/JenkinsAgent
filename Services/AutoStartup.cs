@@ -92,6 +92,28 @@ public class AutoStartup
         return result;
     }
 
+    public async Task<bool> Delete()
+    {
+        try
+        {
+            using (Microsoft.Win32.TaskScheduler.Task task = TaskService.Instance.GetTask(config.Server.TaskSchedulerName))
+            {
+                if (task is null) { return true; }
+                else if (await RunSchtasks($"/delete /tn \"{config.Server.TaskSchedulerName}\" /f"))
+                {
+                    logger.LogInformation("Auto startup scheduler '{scheduler:l}' deleted", config.Server.TaskSchedulerName);
+                    return true;
+                }
+                else { return false; }
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "{msg:l}", e.Message);
+            return false;
+        }
+    }
+
     private bool IsTaskSchedulerValid()
     {
         try

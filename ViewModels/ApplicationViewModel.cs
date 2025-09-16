@@ -1,6 +1,4 @@
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform;
 using Bot.Helpers;
 using Bot.Models;
@@ -197,10 +195,22 @@ public partial class ApplicationViewModel : ViewModelBase
     private async Task Reset()
     {
         ConnectionSubMenu.IsEnabled = ConfigSubMenu.IsEnabled = false;
-        string msg = "Are you sure to reset config?\nYour current config will be deleted";
-        if (MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Reset", msg))
+        string backup = $"{App.ProfileDir}_{DateTime.Now:yyyyMMddHHmmss}";
+        string msg = $"Are you sure to reset application?\nYour settings profile will be deleted and backup\nto {backup}";
+        if (MessageBoxResult.Yes == await MessageBoxHelper.ShowWarningYesNoAsync("Reset", msg))
         {
-            await config.Reset();
+            jenkins.Disconnect();
+            if (await autoStartup.Delete() && await config.Reset(backup))
+            {
+                UnsubscribeEvent();
+                await MessageBoxHelper.ShowInformationAsync("Application need restart after reset!");
+                App.Exit();
+            }
+            else
+            {
+                MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.UnexpectedError));
+                await config.Reload();
+            }
         }
         ConnectionSubMenu.IsEnabled = ConfigSubMenu.IsEnabled = true;
     }
@@ -209,19 +219,36 @@ public partial class ApplicationViewModel : ViewModelBase
     {
         if (MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Exit", "Are you sure to exit application?"))
         {
-            config.Reloaded -= OnConfigReloaded;
-            jenkins.ConnectionChanged -= OnConnectionChanged;
-            autoStartup.Changed -= OnAutoStartupChanged;
-            screenSaver.PreventLockStatusChanged -= OnPreventLockStatusChanged;
+            UnsubscribeEvent();
             jenkins.Disconnect();
             logger.LogInformation("Application exiting");
             flushLog();
-            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            {
-                desktop.Shutdown();
-            }
-            Environment.Exit(0);
+            App.Exit();
         }
+    }
+
+    private string CreateDescription()
+    {
+        string status = jenkins.Status switch
+        {
+            ConnectionStatus.Connected => "Connected to server",
+            ConnectionStatus.Disconnected => "Disconnected from server",
+            ConnectionStatus.Initialize => "Initialize, please wait",
+            ConnectionStatus.Retry => "Retry connection",
+            ConnectionStatus.Interrupted => "Interrupted",
+            ConnectionStatus.Unknown => "Unknown",
+            _ => "",
+        };
+        return $"{App.Description} v{App.Version}{(App.IsElevated ? " (Admin)" : "")}\n" +
+               $"Bot Id: {config.Client.BotId}\nStatus: {status}";
+    }
+
+    private void UnsubscribeEvent()
+    {
+        config.Reloaded -= OnConfigReloaded;
+        jenkins.ConnectionChanged -= OnConnectionChanged;
+        autoStartup.Changed -= OnAutoStartupChanged;
+        screenSaver.PreventLockStatusChanged -= OnPreventLockStatusChanged;
     }
 
     private void OnAutoStartupChanged(object? sender, EventArgs e)
@@ -279,21 +306,5 @@ public partial class ApplicationViewModel : ViewModelBase
             PreventLockMenu.IsChecked = config.Client.IsPreventLock;
             ReconnectMenu.IsChecked = config.Client.IsAutoReconnect;
         }
-    }
-
-    private string CreateDescription()
-    {
-        string status = jenkins.Status switch
-        {
-            ConnectionStatus.Connected => "Connected to server",
-            ConnectionStatus.Disconnected => "Disconnected from server",
-            ConnectionStatus.Initialize => "Initialize, please wait",
-            ConnectionStatus.Retry => "Retry connection",
-            ConnectionStatus.Interrupted => "Interrupted",
-            ConnectionStatus.Unknown => "Unknown",
-            _ => "",
-        };
-        return $"{App.Description} v{App.Version}{(App.IsElevated ? " (Admin)" : "")}\n" +
-               $"Bot Id: {config.Client.BotId}\nStatus: {status}";
     }
 }

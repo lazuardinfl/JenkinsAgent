@@ -114,14 +114,21 @@ public class Config(ILogger<Config> logger, IHttpClientFactory httpClientFactory
         }
     }
 
-    public async Task Reset()
+    public async Task<bool> Reset(string? backup)
     {
-        logger.LogInformation("Resetting config");
-        Client = new();
-        Server = new();
-        IsValid = IsVersionCompatible = false;
-        await Save();
-        Reloaded?.Invoke(this, EventArgs.Empty);
+        logger.LogWarning("Resetting config");
+        try
+        {
+            serilog.Dispose();
+            await Task.Delay(1000);
+            Directory.Move(App.ProfileDir, backup ?? $"{App.ProfileDir}_{DateTime.Now:yyyyMMddHHmmss}");
+            return true;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "{msg:l}", e.Message);
+            return false;
+        }
     }
 
     private TEcsDoc AddEcsDocumentFields<TEcsDoc>(TEcsDoc doc, LogEvent log) where TEcsDoc : Elastic.CommonSchema.EcsDocument

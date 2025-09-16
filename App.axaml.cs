@@ -92,17 +92,22 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    private void SingleInstance()
+    public static void Exit()
+    {
+        if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            desktop.Shutdown();
+        }
+        Environment.Exit(0);
+    }
+
+    private static void SingleInstance()
     {
         if (!mutex.WaitOne(0, false))
         {
             MessageBoxHelper.ShowError("Application already running!");
             mutex.Dispose();
-            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            {
-                desktop.Shutdown();
-            }
-            Environment.Exit(0);
+            Exit();
         }
     }
 }
