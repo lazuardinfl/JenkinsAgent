@@ -10,6 +10,7 @@ using Bot.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Serilog;
 using System;
 using System.Linq;
 using System.Threading;
@@ -33,17 +34,21 @@ public partial class App : Application
     {
         SingleInstance();
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-        builder.Logging.ClearProviders()
-            .AddEventLog()
-            .AddEventSourceLogger()
-            .AddConsole()
-            .AddSimpleConsole(options =>
-            {
-                options.IncludeScopes = false;
-                options.SingleLine = false;
-                options.TimestampFormat = "yyyy-MM-dd HH:mm:ss K # ";
-            });
+        Environment.SetEnvironmentVariable("APPLICATION_ENVIRONMENT", builder.Environment.EnvironmentName);
+        var logging = builder.Logging;
+        if (builder.Environment.IsProduction()) { logging.ClearProviders(); }
+        else { logging.AddSimpleConsole(options => options.TimestampFormat = "yyyy-MM-dd HH:mm:ss K # "); }
+        SwitchableLogger serilog = new()
+        {
+            Logger = new LoggerConfiguration()
+                .Enrich.FromLogContext()
+                .WriteTo.Async(a => a.File($"{ProfileDir}/logs/{Title}_v{Version}_.log",
+                    rollingInterval: RollingInterval.Month, fileSizeLimitBytes: 104857600, rollOnFileSizeLimit: true))
+                .CreateLogger()
+        };
+        logging.AddSerilog(serilog, true);
         builder.Services.AddHttpClient()
+            .AddSingleton(serilog)
             .AddSingleton<Config>()
             .AddSingleton<AutoStartup>()
             .AddSingleton<ScreenSaver>()
@@ -87,17 +92,22 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    private void SingleInstance()
+    public static void Exit()
+    {
+        if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            desktop.Shutdown();
+        }
+        Environment.Exit(0);
+    }
+
+    private static void SingleInstance()
     {
         if (!mutex.WaitOne(0, false))
         {
             MessageBoxHelper.ShowError("Application already running!");
             mutex.Dispose();
-            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            {
-                desktop.Shutdown();
-            }
-            Environment.Exit(0);
+            Exit();
         }
     }
 }

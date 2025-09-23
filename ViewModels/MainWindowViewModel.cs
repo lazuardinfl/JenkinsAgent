@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Bot.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 
 namespace Bot.ViewModels;
@@ -11,6 +12,8 @@ public enum Page { Config, About }
 
 public partial class MainWindowViewModel : ViewModelBase
 {
+    private readonly ILogger logger;
+
     private readonly Dictionary<Page, PageViewModelBase> pages;
 
     [ObservableProperty]
@@ -19,8 +22,9 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string name;
 
-    public MainWindowViewModel(Config config)
+    public MainWindowViewModel(ILogger<MainWindowViewModel> logger, Config config)
     {
+        this.logger = logger;
         name = App.Description;
         pages = new()
         {
@@ -30,7 +34,11 @@ public partial class MainWindowViewModel : ViewModelBase
         currentPage = pages[Page.Config];
     }
 
-    public void Initialize() => ((ConfigViewModel)pages[Page.Config]).Initialize();
+    public void Initialize()
+    {
+        ((ConfigViewModel)pages[Page.Config]).Initialize();
+        logger.LogInformation("Application main window initialized");
+    }
 
     public void Show(Page page)
     {
@@ -44,6 +52,14 @@ public partial class MainWindowViewModel : ViewModelBase
                 window.BringIntoView();
                 window.Focus();
             }
+        }
+    }
+
+    public void Close()
+    {
+        if (CurrentPage is ConfigViewModel configView)
+        {
+            configView.SetValueOnUI();
         }
     }
 }

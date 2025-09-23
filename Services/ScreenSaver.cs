@@ -54,7 +54,8 @@ public class ScreenSaver
             case (ExtensionStatus.Valid or ExtensionStatus.GracePeriod, true):
                 SetScreenSaverTimeout(config.Server.ScreenSaverTimeout);
                 timer.Enabled = true;
-                logger.LogInformation("Prevent Lock is {msg}", PreventLockStatus is ExtensionStatus.Valid ? "running" : "in grace period");
+                logger.LogInformation("Prevent Lock is {status:l} until {expDate:d MMMM yyyy HH:mm}",
+                    PreventLockStatus is ExtensionStatus.Valid ? "running" : "in grace period", PreventLockExpiredDate);
                 break;
             default:
                 timer.Enabled = false;
@@ -95,7 +96,7 @@ public class ScreenSaver
         }
         catch (Exception e)
         {
-            logger.LogError(e, "{msg}", e.Message);
+            logger.LogError(e, "{msg:l}", e.Message);
             PreventLockStatus = ExtensionStatus.Invalid;
         }
     }
@@ -131,7 +132,7 @@ public class ScreenSaver
             }
             catch (Exception e)
             {
-                logger.LogError(e, "{msg}", e.Message);
+                logger.LogError(e, "{msg:l}", e.Message);
             }
         }
         return null;
@@ -173,7 +174,7 @@ public class ScreenSaver
         }
         catch (Exception e)
         {
-            logger.LogError(e, "{msg}", e.Message);
+            logger.LogError(e, "{msg:l}", e.Message);
         }
     }
 
@@ -187,7 +188,7 @@ public class ScreenSaver
         }
         catch (Exception e)
         {
-            logger.LogError(e, "{msg}", e.Message);
+            logger.LogError(e, "{msg:l}", e.Message);
         }
     }
 

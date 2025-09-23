@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Principal;
@@ -73,6 +76,19 @@ public static partial class Helper
         {
             return null;
         }
+    }
+
+    public static string[] GetLocalIPAddress()
+    {
+        List<string> ipAddress = [];
+        foreach (IPAddress ip in Dns.GetHostEntry(Dns.GetHostName()).AddressList)
+        {
+            if (ip.AddressFamily == AddressFamily.InterNetwork)
+            {
+                ipAddress.Add(ip.ToString());
+            }
+        }
+        return [.. ipAddress];
     }
 
     public static string RemoveWhitespaces(string text) => WhitespaceRegex().Replace(text, string.Empty);

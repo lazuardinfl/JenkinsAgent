@@ -2,6 +2,7 @@ using Bot.Helpers;
 using Bot.Models;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -21,8 +22,10 @@ public class Jenkins
     private readonly ILogger logger;
     private readonly IHttpClientFactory httpClientFactory;
     private readonly Config config;
-    private readonly ManualResetEvent mre;
+    private readonly Thread loggerThread;
+    private readonly ManualResetEvent agentMre, logMre;
     private readonly Dictionary<ConnectionStatus, string[]> outputStreams;
+    private readonly ConcurrentQueue<string> outputQueue;
     private ConnectionStatus status;
     private Process? process;
 
@@ -31,7 +34,8 @@ public class Jenkins
         this.logger = logger;
         this.httpClientFactory = httpClientFactory;
         this.config = config;
-        mre = new(false);
+        agentMre = new(false);
+        logMre = new(false);
         outputStreams = new()
         {
             { ConnectionStatus.Connected, ["INFO: Connected"] },
@@ -42,8 +46,11 @@ public class Jenkins
                 "No subject alternative DNS", "SEVERE: Handshake error"
             ]}
         };
+        outputQueue = [];
         status = ConnectionStatus.Disconnected;
         config.Reloaded += OnConfigReloaded;
+        loggerThread = new(LogOutputStream) { IsBackground = true };
+        loggerThread.Start();
     }
 
     public event EventHandler? ConnectionChanged;
@@ -67,7 +74,7 @@ public class Jenkins
         {
             try
             {
-                mre.Reset();
+                agentMre.Reset();
                 process = new();
                 process.StartInfo.FileName = $"{App.ProfileDir}/{config.Server.JavaPath}/java.exe";
                 process.StartInfo.Arguments = (config.Client.IsWindowsCertStoreUsed ? "-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT " : "") +
@@ -93,7 +100,7 @@ public class Jenkins
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
                 logger.LogInformation("Jenkins PID {pid} started", process.Id);
-                if (!await Task.Run(() => mre.WaitOne(atStartup ? config.Server.StartupConnectTimeout : config.Server.ConnectTimeout)))
+                if (!await Task.Run(() => agentMre.WaitOne(atStartup ? config.Server.StartupConnectTimeout : config.Server.ConnectTimeout)))
                 {
                     Disconnect();
                     MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed));
@@ -102,7 +109,7 @@ public class Jenkins
             catch (Exception e)
             {
                 Status = ConnectionStatus.Disconnected;
-                logger.LogError(e, "{msg}", e.Message);
+                logger.LogError(e, "{msg:l}", e.Message);
                 MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.UnexpectedError));
             }
         }
@@ -124,7 +131,7 @@ public class Jenkins
         }
         catch (Exception e)
         {
-            logger.LogError(e, "{msg}", e.Message);
+            logger.LogError(e, "{msg:l}", e.Message);
         }
         Status = ConnectionStatus.Disconnected;
     }
@@ -157,7 +164,7 @@ public class Jenkins
         }
         catch (Exception e)
         {
-            logger.LogError(e, "{msg}", e.Message);
+            logger.LogError(e, "{msg:l}", e.Message);
             return false;
         }
     }
@@ -182,7 +189,7 @@ public class Jenkins
         }
         catch (Exception e)
         {
-            logger.LogError(e, "{msg}", e.Message);
+            logger.LogError(e, "{msg:l}", e.Message);
             return false;
         }
     }
@@ -207,7 +214,7 @@ public class Jenkins
         }
         catch (Exception e)
         {
-            logger.LogError(e, "{msg}", e.Message);
+            logger.LogError(e, "{msg:l}", e.Message);
             return false;
         }
     }
@@ -228,15 +235,58 @@ public class Jenkins
         }
         catch (Exception e)
         {
-            logger.LogError(e, "{msg}", e.Message);
+            logger.LogError(e, "{msg:l}", e.Message);
             return false;
+        }
+    }
+
+    private void LogOutputStream()
+    {
+        string? msg = null;
+        LogLevel level = LogLevel.Information;
+        string[] levels = ["INFO:", "WARNING:", "SEVERE:"];
+        while (true)
+        {
+            logMre.WaitOne();
+            while (!outputQueue.IsEmpty)
+            {
+                if (outputQueue.TryDequeue(out string? data) && data is not null)
+                {
+                    if (DateTime.TryParse(data[..(data.Length < 24 ? data.Length : 24)], out _))
+                    {
+                        msg = data[24..].TrimStart();
+                        level = LogLevel.Information;
+                    }
+                    else if (levels.Any(data[..(data.Length < 8 ? data.Length : 8)].Contains))
+                    {
+                        string[] result = data.Split(":", 2);
+                        msg = $"{msg}\r\n{result[1].TrimStart()}";
+                        switch (result[0])
+                        {
+                            case "INFO":
+                                level = LogLevel.Information;
+                                break;
+                            case "WARNING":
+                                level = LogLevel.Warning;
+                                break;
+                            case "SEVERE":
+                                level = LogLevel.Error;
+                                break;
+                        }
+                        logger.Log(level, "{msg:l}", msg);
+                    }
+                }
+            }
+            logMre.Reset();
         }
     }
 
     private ConnectionStatus GetOutputStreamStatus(string? outputData)
     {
-        if (outputData != null)
+        if (outputData is not null)
         {
+            outputQueue.Enqueue(outputData);
+            logMre.Set();
             foreach (ConnectionStatus output in outputStreams.Keys)
             {
                 if (outputStreams[output].Any(outputData.Contains)) { return output; }
@@ -247,19 +297,20 @@ public class Jenkins
 
     private async void OnOutputReceived(object? sender, DataReceivedEventArgs e)
     {
-        logger.LogInformation("{data}", e.Data);
         switch (GetOutputStreamStatus(e.Data))
         {
             case ConnectionStatus.Connected:
-                mre.Set();
+                logger.LogInformation("Jenkins connected");
+                agentMre.Set();
                 Status = ConnectionStatus.Connected;
                 break;
             case ConnectionStatus.Interrupted:
+                logger.LogWarning("Jenkins interrupted");
                 Status = ConnectionStatus.Interrupted;
                 if (!await config.Reload() || !config.IsVersionCompatible || !config.Client.IsAutoReconnect) { Disconnect(); }
                 break;
             case ConnectionStatus.Retry:
-                mre.Set();
+                agentMre.Set();
                 if (config.Client.IsAutoReconnect) { Status = ConnectionStatus.Retry; }
                 else
                 {
@@ -268,7 +319,7 @@ public class Jenkins
                 }
                 break;
             case ConnectionStatus.Disconnected:
-                mre.Set();
+                agentMre.Set();
                 Status = ConnectionStatus.Disconnected;
                 MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.ConnectionFailed));
                 break;
@@ -293,7 +344,7 @@ public class Jenkins
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "{msg}", ex.Message);
+            logger.LogError(ex, "{msg:l}", ex.Message);
         }
     }
 }

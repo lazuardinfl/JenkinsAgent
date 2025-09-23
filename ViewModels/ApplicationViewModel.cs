@@ -1,6 +1,4 @@
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform;
 using Bot.Helpers;
 using Bot.Models;
@@ -20,6 +18,7 @@ public partial class ApplicationViewModel : ViewModelBase
     private readonly Jenkins jenkins;
     private readonly AutoStartup autoStartup;
     private readonly ScreenSaver screenSaver;
+    private readonly Action flushLog;
     private readonly Dictionary<BotIcon, WindowIcon> icons;
     [ObservableProperty]
     private WindowIcon icon;
@@ -43,13 +42,14 @@ public partial class ApplicationViewModel : ViewModelBase
     public TrayMenu ExitMenu { get; }
     public Action<Page> ShowPage { get; set; }
 
-    public ApplicationViewModel(ILogger<ApplicationViewModel> logger, Config config, Jenkins jenkins, AutoStartup autoStartup, ScreenSaver screenSaver)
+    public ApplicationViewModel(ILogger<ApplicationViewModel> logger, Config config, Jenkins jenkins, AutoStartup autoStartup, ScreenSaver screenSaver, Serilog.SwitchableLogger serilog)
     {
         this.logger = logger;
         this.config = config;
         this.jenkins = jenkins;
         this.autoStartup = autoStartup;
         this.screenSaver = screenSaver;
+        flushLog = serilog.Dispose;
         icons = new() {
             { BotIcon.Normal, new(AssetLoader.Open(new Uri($"avares://{App.Title}/Assets/normal.ico"))) },
             { BotIcon.Offline, new(AssetLoader.Open(new Uri($"avares://{App.Title}/Assets/offline.ico"))) }
@@ -87,6 +87,8 @@ public partial class ApplicationViewModel : ViewModelBase
         ConnectMenu.IsEnabled = !ReconnectMenu.IsChecked;
         StartupSubMenu.IsVisible = true;
         ConfigSubMenu.IsVisible = true;
+        logger.LogInformation("Auto reconnect is {status:l}", config.Client.IsAutoReconnect ? "enabled" : "disabled");
+        logger.LogInformation("Application tray initialized");
     }
 
     public void ShowMainWindow(Page page) => ShowPage(page);
@@ -137,7 +139,8 @@ public partial class ApplicationViewModel : ViewModelBase
         string msg = $"Are you sure to {(config.Client.IsAutoReconnect ? "disable" : "enable")} auto reconnect?";
         if (MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Auto Reconnect", msg))
         {
-            switch (jenkins.Status, config.Client.IsAutoReconnect)
+            config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
+            switch (jenkins.Status, !config.Client.IsAutoReconnect)
             {
                 case (ConnectionStatus.Retry, true):
                     jenkins.Disconnect();
@@ -146,12 +149,12 @@ public partial class ApplicationViewModel : ViewModelBase
                     await jenkins.Connect();
                     break;
             }
-            config.Client.IsAutoReconnect = !config.Client.IsAutoReconnect;
             ReconnectMenu.IsChecked = config.Client.IsAutoReconnect;
             ConnectMenu.IsEnabled = !ReconnectMenu.IsChecked;
             await config.Save();
         }
         ConnectionSubMenu.IsEnabled = ConfigSubMenu.IsEnabled = true;
+        logger.LogInformation("Auto reconnect is {status:l}", config.Client.IsAutoReconnect ? "enabled" : "disabled");
     }
 
     private async Task Connect()
@@ -192,10 +195,22 @@ public partial class ApplicationViewModel : ViewModelBase
     private async Task Reset()
     {
         ConnectionSubMenu.IsEnabled = ConfigSubMenu.IsEnabled = false;
-        string msg = "Are you sure to reset config?\nYour current config will be deleted";
-        if (MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Reset", msg))
+        string backup = $"{App.ProfileDir}_{DateTime.Now:yyyyMMddHHmmss}";
+        string msg = $"Are you sure to reset application?\nYour settings profile will be deleted and backup\nto {backup}";
+        if (MessageBoxResult.Yes == await MessageBoxHelper.ShowWarningYesNoAsync("Reset", msg))
         {
-            await config.Reset();
+            jenkins.Disconnect();
+            if (await autoStartup.Delete() && await config.Reset(backup))
+            {
+                UnsubscribeEvent();
+                await MessageBoxHelper.ShowInformationAsync("Application need restart after reset!");
+                App.Exit();
+            }
+            else
+            {
+                MessageBoxHelper.ShowErrorFireForget(MessageBoxHelper.GetMessage(MessageStatus.UnexpectedError));
+                await config.Reload();
+            }
         }
         ConnectionSubMenu.IsEnabled = ConfigSubMenu.IsEnabled = true;
     }
@@ -204,18 +219,36 @@ public partial class ApplicationViewModel : ViewModelBase
     {
         if (MessageBoxResult.Ok == await MessageBoxHelper.ShowQuestionOkCancelAsync("Exit", "Are you sure to exit application?"))
         {
-            config.Reloaded -= OnConfigReloaded;
-            jenkins.ConnectionChanged -= OnConnectionChanged;
-            autoStartup.Changed -= OnAutoStartupChanged;
-            screenSaver.PreventLockStatusChanged -= OnPreventLockStatusChanged;
+            UnsubscribeEvent();
             jenkins.Disconnect();
             logger.LogInformation("Application exiting");
-            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            {
-                desktop.Shutdown();
-            }
-            Environment.Exit(0);
+            flushLog();
+            App.Exit();
         }
+    }
+
+    private string CreateDescription()
+    {
+        string status = jenkins.Status switch
+        {
+            ConnectionStatus.Connected => "Connected to server",
+            ConnectionStatus.Disconnected => "Disconnected from server",
+            ConnectionStatus.Initialize => "Initialize, please wait",
+            ConnectionStatus.Retry => "Retry connection",
+            ConnectionStatus.Interrupted => "Interrupted",
+            ConnectionStatus.Unknown => "Unknown",
+            _ => "",
+        };
+        return $"{App.Description} v{App.Version}{(App.IsElevated ? " (Admin)" : "")}\n" +
+               $"Bot Id: {config.Client.BotId}\nStatus: {status}";
+    }
+
+    private void UnsubscribeEvent()
+    {
+        config.Reloaded -= OnConfigReloaded;
+        jenkins.ConnectionChanged -= OnConnectionChanged;
+        autoStartup.Changed -= OnAutoStartupChanged;
+        screenSaver.PreventLockStatusChanged -= OnPreventLockStatusChanged;
     }
 
     private void OnAutoStartupChanged(object? sender, EventArgs e)
@@ -273,21 +306,5 @@ public partial class ApplicationViewModel : ViewModelBase
             PreventLockMenu.IsChecked = config.Client.IsPreventLock;
             ReconnectMenu.IsChecked = config.Client.IsAutoReconnect;
         }
-    }
-
-    private string CreateDescription()
-    {
-        string status = jenkins.Status switch
-        {
-            ConnectionStatus.Connected => "Connected to server",
-            ConnectionStatus.Disconnected => "Disconnected from server",
-            ConnectionStatus.Initialize => "Initialize, please wait",
-            ConnectionStatus.Retry => "Retry connection",
-            ConnectionStatus.Interrupted => "Interrupted",
-            ConnectionStatus.Unknown => "Unknown",
-            _ => "",
-        };
-        return $"{App.Description} v{App.Version}{(App.IsElevated ? " (Admin)" : "")}\n" +
-               $"Bot Id: {config.Client.BotId}\nStatus: {status}";
     }
 }

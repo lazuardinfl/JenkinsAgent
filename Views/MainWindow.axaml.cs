@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Bot.ViewModels;
 using System;
 
 namespace Bot.Views;
@@ -29,5 +30,6 @@ public partial class MainWindow : Window
     {
         Hide();
         e.Cancel = true;
+        if (DataContext is MainWindowViewModel vm) { vm.Close(); }
     }
 }

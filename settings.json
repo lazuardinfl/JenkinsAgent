@@ -1,8 +1,9 @@
 {
     "OrchestratorUrl": "https://jenkins.tld",
-    "BotId": "BotId",
-    "BotToken": "BotToken",
     "SettingsUrl": "path/to/config.json",
+    "BotId": "id",
+    "BotToken": "encrypted",
+    "UseWindowsCertStore": true,
     "AutoReconnect": true,
     "PreventLock": false
 }

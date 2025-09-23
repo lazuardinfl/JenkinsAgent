@@ -20,11 +20,11 @@ public static class MessageBoxHelper
     public static async void ShowErrorFireForget(string msg)
         => await ShowAsync("Error", msg, MessageBoxButtons.Ok, MessageBoxIcon.Error);
 
-    public static Task<MessageBoxResult> ShowErrorAsync(string msg)
-        => ShowAsync("Error", msg, MessageBoxButtons.Ok, MessageBoxIcon.Error);
+    public static Task<MessageBoxResult> ShowInformationAsync(string msg)
+        => ShowAsync("Information", msg, MessageBoxButtons.Ok, MessageBoxIcon.Information);
 
-    public static Task<MessageBoxResult> ShowQuestionYesNoAsync(string title, string msg)
-        => ShowAsync(title, msg, MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+    public static Task<MessageBoxResult> ShowWarningYesNoAsync(string title, string msg)
+        => ShowAsync(title, msg, MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
 
     public static Task<MessageBoxResult> ShowQuestionOkCancelAsync(string title, string msg)
         => ShowAsync(title, msg, MessageBoxButtons.OkCancel, MessageBoxIcon.Question);

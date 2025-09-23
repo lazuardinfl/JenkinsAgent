@@ -72,7 +72,7 @@ public partial class ConfigViewModel : PageViewModelBase
         SetValueOnUI();
     }
 
-    private void SetValueOnUI()
+    public void SetValueOnUI()
     {
         OrchestratorUrl = config.Client.OrchestratorUrl;
         SettingsUrl = config.Client.SettingsUrl;
